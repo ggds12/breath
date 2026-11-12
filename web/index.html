@@ -4,99 +4,72 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark light">
   <title>TokenBar · GGDS</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div class="shell">
-    <header class="top">
-      <div class="brand">
-        <img class="brand-mark" src="/assets/favicon.svg" alt="" width="32" height="32">
-        <div class="brand-text">
-          <span class="brand-name">TokenBar</span>
-          <span class="brand-sub">ggds · limites de IA, local</span>
+  <div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
+
+  <div class="scene" id="scene">
+    <div class="widget" id="widget">
+
+      <header class="head layer" data-depth="34">
+        <div class="mascot" id="mascot" aria-hidden="true">
+          <div class="mascot-glow"></div>
+          <img class="mascot-img" id="mascot-a" alt="" width="64" height="64">
+          <img class="mascot-img" id="mascot-b" alt="" width="64" height="64">
+          <div class="mascot-shadow"></div>
         </div>
-      </div>
-      <div class="actions">
-        <span class="updated mono" id="updated" aria-live="polite">carregando…</span>
-        <button class="btn" id="refresh" type="button" title="Atualizar agora (R)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
-          <span>Atualizar</span>
-        </button>
-        <button class="btn icon" id="theme" type="button" title="Alternar tema (T)" aria-label="Alternar tema">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
-        </button>
-        <button class="btn icon mini-only" id="pin" type="button" aria-pressed="false"
-                title="Fixar: não fechar ao clicar fora (F)" aria-label="Fixar janela">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 4 3v2H6v-2l4-3zM12 14v7"/></svg>
-        </button>
-      </div>
-    </header>
-
-    <section class="hero" aria-live="polite">
-      <img class="hero-mascot" id="hero-mascot" src="/assets/mascote/processando.svg" alt="" width="132" height="132">
-      <div class="hero-copy">
-        <p class="eyebrow mono" id="hero-eyebrow">Processando</p>
-        <h1 id="hero-title">Lendo seus limites…</h1>
-        <p class="hero-detail" id="hero-detail">Consultando Claude e Codex direto da sua máquina.</p>
-      </div>
-    </section>
-
-    <main class="grid" id="providers"></main>
-
-    <section class="usage">
-      <div class="section-head">
-        <h2>Tokens por dia</h2>
-        <p class="muted">Contados nos logs locais do Claude Code e do Codex · últimos 7 dias</p>
-      </div>
-      <div class="usage-grid" id="usage"></div>
-    </section>
-
-    <footer class="foot">
-      <span class="foot-lock">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>
-        Roda só em 127.0.0.1. Seus tokens de login ficam no servidor local; o navegador nunca os vê.
-        Saídas de rede: apenas api.anthropic.com e chatgpt.com.
-      </span>
-      <span class="mono" id="version"></span>
-    </footer>
-    <footer class="mini-foot mini-only">
-      <a href="/" target="_blank" rel="noopener">Abrir painel completo ↗</a>
-      <span class="mono" id="mini-updated"></span>
-    </footer>
-  </div>
-
-  <template id="tpl-provider">
-    <article class="card">
-      <header class="card-head">
-        <img class="card-mascot" alt="" width="56" height="56">
-        <div class="card-title">
-          <h3 class="card-name"></h3>
-          <div class="chips"></div>
+        <div class="head-copy" aria-live="polite">
+          <p class="eyebrow" id="eyebrow">Buscando</p>
+          <h1 id="headline">Lendo seus limites…</h1>
+          <p class="sub" id="sub">Claude e Codex, direto da sua máquina.</p>
         </div>
       </header>
-      <p class="card-msg"></p>
-      <div class="windows"></div>
-    </article>
-  </template>
 
-  <template id="tpl-window">
-    <div class="win">
-      <div class="win-top">
-        <span class="win-label"></span>
-        <span class="win-pct mono"></span>
-      </div>
-      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-        <div class="bar-fill"></div>
-        <div class="bar-pace" title="Onde você estaria num ritmo uniforme"></div>
-      </div>
-      <div class="win-meta mono">
-        <span class="win-reset"></span>
-        <span class="win-pace"></span>
-      </div>
+      <main class="providers" id="providers"></main>
+
+      <footer class="foot layer" data-depth="10">
+        <div class="tools">
+          <button class="tool" id="refresh" type="button" title="Atualizar (R)" aria-label="Atualizar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
+          </button>
+          <button class="tool" id="theme" type="button" title="Tema claro/escuro (T)" aria-label="Alternar tema">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+          </button>
+          <button class="tool mini-only" id="pin" type="button" aria-pressed="false"
+                  title="Fixar: não fecha ao clicar fora (F)" aria-label="Fixar janela">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 4 3v2H6v-2l4-3zM12 14v7"/></svg>
+          </button>
+          <a class="tool mini-only" id="expand" href="/" target="_blank" rel="noopener"
+             title="Abrir no navegador" aria-label="Abrir no navegador">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+          </a>
+        </div>
+        <span class="stamp" id="stamp"><i class="dot"></i><span id="stamp-text">conectando</span></span>
+      </footer>
     </div>
+  </div>
+
+  <p class="privacy full-only">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>
+    100% local em 127.0.0.1 · tokens de login nunca chegam ao navegador · rede só para api.anthropic.com e chatgpt.com
+  </p>
+
+  <template id="tpl-provider">
+    <section class="card layer" data-depth="18">
+      <div class="card-sheen" aria-hidden="true"></div>
+      <header class="card-head">
+        <span class="p-name"></span>
+        <span class="p-plan"></span>
+        <span class="p-live"></span>
+      </header>
+      <p class="p-msg"></p>
+      <div class="rings"></div>
+      <div class="extras"></div>
+    </section>
   </template>
 
   <script src="/app.js" defer></script>

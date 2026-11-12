@@ -17,7 +17,7 @@ _tmp = tempfile.mkdtemp(prefix="tokenbar-test-")
 os.environ["CLAUDE_CONFIG_DIR"] = str(Path(_tmp, "claude"))
 os.environ["CODEX_HOME"] = str(Path(_tmp, "codex"))
 
-from tokenbar import localusage, net, server  # noqa: E402
+from tokenbar import net, server  # noqa: E402
 from tokenbar.providers import claude, codex  # noqa: E402
 
 
@@ -72,31 +72,6 @@ class TraySummaryTests(unittest.TestCase):
         self.assertEqual(txt, "TokenBar · Claude 22% (sem. 78%) · Codex —")
         self.assertLess(len(txt), 128)   # limite da dica do ícone
 
-
-class LocalUsageTests(unittest.TestCase):
-    def test_claude_dedupes_and_codex_uses_deltas(self):
-        today = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z"
-        proj = Path(_tmp, "claude", "projects", "p")
-        proj.mkdir(parents=True, exist_ok=True)
-        line = {"type": "assistant", "timestamp": today, "requestId": "r1",
-                "message": {"id": "m1", "model": "x", "usage": {
-                    "input_tokens": 10, "output_tokens": 5,
-                    "cache_creation_input_tokens": 0, "cache_read_input_tokens": 100}}}
-        (proj / "s.jsonl").write_text("\n".join([json.dumps(line)] * 3), encoding="utf-8")
-
-        sess = Path(_tmp, "codex", "sessions", "2026")
-        sess.mkdir(parents=True, exist_ok=True)
-        evs = [{"timestamp": today, "payload": {"type": "token_count", "info": {"total_token_usage": {
-            "input_tokens": i * 100, "cached_input_tokens": i * 50, "output_tokens": i * 10, "total_tokens": i * 110}}}}
-            for i in (1, 2, 2, 3)]
-        (sess / "rollout-x.jsonl").write_text("\n".join(json.dumps(e) for e in evs), encoding="utf-8")
-
-        s = localusage.summary(2)
-        t = s["days"][-1]
-        self.assertEqual(t["claude"]["input"], 10)          # 3 linhas iguais contam 1 vez
-        self.assertEqual(t["claude"]["cache_read"], 100)
-        self.assertEqual(t["codex"]["total"], 330)          # 110 + 110 + 0 + 110
-        self.assertEqual(t["codex"]["output"], 30)
 
 
 class NetTests(unittest.TestCase):

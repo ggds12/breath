@@ -8,8 +8,7 @@ O TokenBar foi feito para uma pessoa, numa máquina. O objetivo é que nada do q
 |---|---|---|
 | `~/.claude/.credentials.json` | `accessToken` para consultar o uso na Anthropic | **Nunca** |
 | `~/.codex/auth.json` | `access_token` e `account_id` para consultar o uso no ChatGPT | **Nunca** |
-| `~/.claude/projects/**/*.jsonl` | Contagem de tokens (só o bloco `usage`) | Nunca |
-| `~/.codex/sessions/**/rollout-*.jsonl` | Contagem de tokens e último `rate_limits` | Nunca |
+| `~/.codex/sessions/**/rollout-*.jsonl` | Último `rate_limits` (plano B offline do Codex) | Nunca |
 
 O TokenBar **não renova** tokens. A renovação giraria o refresh token e poderia deslogar o Claude Code ou o Codex. Quando um token expira, o painel pede para você abrir a ferramenta correspondente, que renova sozinha.
 

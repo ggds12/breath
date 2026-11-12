@@ -20,8 +20,6 @@ CODEX_DIR = Path(os.environ.get("CODEX_HOME") or HOME / ".codex")
 LIMITS_TTL = int(os.environ.get("TOKENBAR_LIMITS_TTL", "60"))
 # Intervalo mínimo entre atualizações forçadas pelo botão.
 FORCE_MIN_INTERVAL = 15
-# Logs locais: quantos dias analisar.
-HISTORY_DAYS = 7
 
 # Únicos hosts com os quais o TokenBar conversa. Qualquer outro é recusado.
 ALLOWED_HOSTS = frozenset({"api.anthropic.com", "chatgpt.com"})

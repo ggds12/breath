@@ -2,13 +2,13 @@
 
 Painel local para acompanhar os limites de uso do **Claude** (assinatura Pro/Max) e do **Codex** (assinatura ChatGPT), com a identidade visual GGDS.
 
-- **Sessão (5h)** e **Semana**, em %, com horário de reinício e um marcador de ritmo: onde você estaria se usasse a cota de forma uniforme.
+- **Sessão (5h)** e **Semana** em anéis animados, com contagem regressiva para o reinício e um ponto de ritmo: onde você estaria se usasse a cota de forma uniforme.
 - Limites semanais por modelo, quando a Anthropic os informa (ex.: "Semana · Opus").
-- **Tokens por dia** nos últimos 7 dias, contados nos logs locais do Claude Code e do Codex.
-- O mascote GGDS muda de estado conforme a situação: pronto, atenção, limite atingido, sem dados.
-- Tema claro e escuro, atalhos `R` (atualizar) e `T` (tema). O título da aba resume as sessões (`Claude 22% · Codex 100%`).
+- O mascote GGDS animado muda de estado conforme a situação: pronto, buscando, atualizando, concluído, atenção, limite atingido, sem dados e em repouso.
+- Interface em camadas 3D que acompanham o ponteiro, fundo vivo, entrada em cascata e números que contam até o valor. Respeita "reduzir movimento" do Windows.
+- Tema claro e escuro, atalhos `R` (atualizar), `T` (tema), `F` (fixar) e `Esc` (fechar).
 
-> Nem o Claude nem o Codex têm limite "diário". Os dois usam uma janela móvel de **5 horas** (sessão) e uma janela de **7 dias** (semana). O consumo diário aparece na seção *Tokens por dia*.
+> Nem o Claude nem o Codex têm limite "diário". Os dois usam uma janela móvel de **5 horas** (sessão) e uma janela de **7 dias** (semana).
 
 ## Requisitos
 
@@ -41,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File scripts\stop.ps1
 
 Sem ícone, só o servidor: `python -m tokenbar --no-tray` e abra <http://127.0.0.1:7878>.
 
-A janelinha é o Microsoft Edge em modo app, com um perfil separado em `%LOCALAPPDATA%\TokenBar\janela`. Ela não usa seus favoritos, senhas ou cookies do Edge.
+A janelinha é o Microsoft Edge em modo app, com um perfil separado em `%LOCALAPPDATA%\TokenBar\janela` (não usa seus favoritos, senhas ou cookies). O TokenBar recorta só a área da página, então não há barra de título. Também tira a janela da barra de tarefas e do Alt+Tab e a mantém por cima, no canto do relógio, como um menu do Windows.
 
 ### Configuração (variáveis de ambiente)
 
@@ -59,7 +59,6 @@ A janelinha é o Microsoft Edge em modo app, com um perfil separado em `%LOCALAP
 | Claude, limites | `GET https://api.anthropic.com/api/oauth/usage` com o token OAuth de `~/.claude/.credentials.json` | Só Anthropic |
 | Codex, limites | `GET https://chatgpt.com/backend-api/wham/usage` com o token de `~/.codex/auth.json` | Só OpenAI |
 | Codex, sem rede | Último `rate_limits` nos logs `~/.codex/sessions/**/rollout-*.jsonl` | Nenhuma |
-| Tokens por dia | `~/.claude/projects/**/*.jsonl` e os logs de sessão do Codex | Nenhuma |
 
 Esses endpoints de uso não são APIs públicas documentadas: são os mesmos que o Claude Code e o Codex usam para mostrar os limites. Se mudarem, o Codex continua funcionando pelos logs locais, e o painel indica a falha no cartão do provedor.
 
@@ -78,7 +77,6 @@ python -m unittest discover -s tests -v
 ```
 tokenbar/            servidor e coletores (Python, só stdlib)
   providers/         claude.py, codex.py
-  localusage.py      tokens por dia a partir dos logs locais
   net.py             cliente HTTPS com lista de hosts permitidos
   server.py          HTTP local, API /api/status, cabeçalhos de segurança
   tray.py            ícone na bandeja do Windows (ctypes/Win32, sem dependências)

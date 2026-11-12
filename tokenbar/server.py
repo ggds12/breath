@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from . import __version__, localusage
+from . import __version__
 from .config import BIND_HOST, FORCE_MIN_INTERVAL, LIMITS_TTL, PORT, WEB_DIR
 from .providers import claude, codex, now_iso
 
@@ -146,15 +146,10 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/status":
             force = parse_qs(url.query).get("refresh") == ["1"]
             limits = STATE.get_limits(force)
-            try:
-                usage = localusage.summary()
-            except Exception as exc:
-                usage = {"error": type(exc).__name__, "days": []}
             return self._json(200, {
                 "version": __version__,
                 "generated_at": now_iso(),
                 "providers": limits,
-                "usage": usage,
             })
         if url.path == "/api/health":
             return self._json(200, {"ok": True, "version": __version__})
