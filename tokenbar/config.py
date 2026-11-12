@@ -25,3 +25,6 @@ FORCE_MIN_INTERVAL = 15
 ALLOWED_HOSTS = frozenset({"api.anthropic.com", "chatgpt.com"})
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+
+# Última leitura (só porcentagens e horários), para abrir já com dados.
+CACHE_FILE = Path(os.environ.get("LOCALAPPDATA") or HOME / ".cache") / "TokenBar" / "ultima-leitura.json"

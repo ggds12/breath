@@ -2,7 +2,6 @@
 // TokenBar · painel. Texto vindo da API entra sempre via textContent (nunca innerHTML).
 
 const POLL_MS = 60_000;
-const SVGNS = "http://www.w3.org/2000/svg";
 const $ = (sel, root = document) => root.querySelector(sel);
 const html = document.documentElement;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -185,101 +184,70 @@ function countTo(el, to) {
   requestAnimationFrame(step);
 }
 
-/* ============================ anéis ============================ */
-const R = 26, C = 2 * Math.PI * R;
-let gradSeq = 0;
-
+/* ============================ barras ============================ */
+// Cada limite é uma barra por extenso: rótulo e porcentagem em cima, a barra animada
+// (mesmas cores e brilho de antes) e, embaixo, quando reinicia e o ritmo.
 function buildRing() {
   const cell = document.createElement("div");
-  cell.className = "ring-cell";
-  const ring = document.createElement("div");
-  ring.className = "ring";
-  const svg = document.createElementNS(SVGNS, "svg");
-  svg.setAttribute("viewBox", "0 0 62 62");
-  const id = `g${++gradSeq}`;
-  const defs = document.createElementNS(SVGNS, "defs");
-  const grad = document.createElementNS(SVGNS, "linearGradient");
-  grad.id = id;
-  grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "1"); grad.setAttribute("y2", "1");
-  for (const [off, v] of [["0", "var(--c2)"], ["1", "var(--c1)"]]) {
-    const s = document.createElementNS(SVGNS, "stop");
-    s.setAttribute("offset", off);
-    s.style.setProperty("stop-color", v);
-    grad.append(s);
-  }
-  defs.append(grad);
-  const track = document.createElementNS(SVGNS, "circle");
-  track.setAttribute("class", "track");
-  const arc = document.createElementNS(SVGNS, "circle");
-  arc.setAttribute("class", "arc");
-  arc.setAttribute("stroke", `url(#${id})`);
-  arc.setAttribute("stroke-dasharray", `${C} ${C}`);
-  arc.setAttribute("stroke-dashoffset", String(C));
-  for (const c of [track, arc]) { c.setAttribute("cx", "31"); c.setAttribute("cy", "31"); c.setAttribute("r", String(R)); }
-  const pace = document.createElementNS(SVGNS, "circle");
-  pace.setAttribute("class", "pace");
-  pace.setAttribute("r", "2.2");
-  pace.style.setProperty("opacity", "0");
-  svg.append(defs, track, arc, pace);
-
-  const core = document.createElement("div");
-  core.className = "ring-core";
-  const num = document.createElement("span");
-  num.className = "ring-num";
+  cell.className = "meter";
+  const top = document.createElement("div"); top.className = "meter-top";
+  const label = document.createElement("span"); label.className = "meter-label";
+  const num = document.createElement("span"); num.className = "meter-num";
   num.append(document.createTextNode("–"));
-  const pct = document.createElement("small");
-  pct.textContent = "%";
-  num.append(pct);
-  core.append(num);
-  ring.append(svg, core);
+  const pctSign = document.createElement("small"); pctSign.textContent = "%";
+  num.append(pctSign);
+  top.append(label, num);
 
-  const meta = document.createElement("div");
-  meta.className = "ring-meta";
-  const label = document.createElement("span"); label.className = "ring-label";
-  const reset = document.createElement("span"); reset.className = "ring-reset";
-  const resetAt = document.createElement("span"); resetAt.className = "ring-at";
-  const paceTxt = document.createElement("span"); paceTxt.className = "ring-pace";
-  meta.append(label, reset, resetAt, paceTxt);
-  cell.append(ring, meta);
-  return { cell, ring, arc, pace, num, label, reset, resetAt, paceTxt };
+  const ring = document.createElement("div"); ring.className = "bar";   // "ring": nome mantido p/ o nível
+  const fill = document.createElement("div"); fill.className = "bar-fill";
+  const glint = document.createElement("i"); glint.className = "bar-glint";
+  fill.append(glint);
+  const pace = document.createElement("div"); pace.className = "bar-pace";
+  ring.append(fill, pace);
+
+  const meta = document.createElement("div"); meta.className = "meter-meta";
+  const reset = document.createElement("span"); reset.className = "meter-reset";
+  const paceTxt = document.createElement("span"); paceTxt.className = "meter-pace";
+  meta.append(reset, paceTxt);
+
+  cell.append(top, ring, meta);
+  return { cell, ring, fill, pace, num, label, reset, paceTxt };
 }
 
 function updateRing(r, w) {
   const pct = w ? w.used_percent : null;
-  r.ring.dataset.level = level(pct);
+  const lvl = level(pct);
+  r.ring.dataset.level = lvl;
+  r.cell.dataset.level = lvl;
   r.label.textContent = (w ? w.label : r.fallback).replace("Sessão · 5h", "Sessão 5h");
   if (pct == null) {
     r.num.dataset.value = "";          // cancela contagens em andamento
     r.num.firstChild.nodeValue = "–";
-    r.arc.setAttribute("stroke-dashoffset", String(C));
+    r.fill.style.setProperty("width", "0%");
   } else {
     countTo(r.num, Math.round(pct));
-    // Começa do zero na 1ª pintura para o arco "desenhar" na entrada.
-    setTimeout(() => r.arc.setAttribute("stroke-dashoffset", String(C * (1 - pct / 100))), 60);
+    // Começa do zero na 1ª pintura para a barra "encher" na entrada.
+    setTimeout(() => r.fill.style.setProperty("width", `${Math.max(pct, pct > 0 ? 1.5 : 0)}%`), 60);
   }
   if (w && w.resets_at) {
     const at = new Date(w.resets_at);
-    r.reset.textContent = `↻ em ${fmtDuration(at - Date.now())}`;
-    r.resetAt.textContent = fmtAt(at);
+    r.reset.textContent = `↻ ${fmtAt(at)} · em ${fmtDuration(at - Date.now())}`;
     r.cell.title = `${w.label}: ${Math.round(pct ?? 0)}% usado · reinicia ${at.toLocaleString("pt-BR")}`;
   } else {
     r.reset.textContent = pct === 0 ? "janela livre" : pct == null ? "sem dados" : "";
-    r.resetAt.textContent = "";
     r.cell.removeAttribute("title");
   }
   const p = w ? paceOf(w) : null;
-  r.paceTxt.className = "ring-pace";
+  r.paceTxt.className = "meter-pace";
   if (p != null && pct != null) {
-    const a = (p / 100) * 2 * Math.PI;
-    r.pace.setAttribute("cx", String(31 + R * Math.cos(a)));
-    r.pace.setAttribute("cy", String(31 + R * Math.sin(a)));
-    r.pace.style.setProperty("opacity", ".8");
+    r.pace.style.setProperty("left", `${p}%`);
+    r.pace.classList.add("on");
     const diff = Math.round(pct - p);
     if (Math.abs(diff) <= 3) r.paceTxt.textContent = "no ritmo";
     else if (diff > 0) { r.paceTxt.textContent = `+${diff} acima do ritmo`; r.paceTxt.classList.add("ahead"); }
     else { r.paceTxt.textContent = `${-diff} de folga`; r.paceTxt.classList.add("behind"); }
   } else {
-    r.pace.style.setProperty("opacity", "0");
+    r.pace.classList.remove("on");
     r.paceTxt.textContent = "";
   }
 }

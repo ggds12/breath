@@ -57,7 +57,7 @@ MONITOR_DEFAULTTONEAREST = 2
 
 CMD_OPEN, CMD_FULL, CMD_REFRESH, CMD_QUIT = 1, 2, 3, 9
 # Tamanho da área da página, em DIPs (o mesmo que o CSS usa).
-POPUP_W, POPUP_H = 340, 392
+POPUP_W, POPUP_H = 340, 462
 # O Edge desenha 1 px da barra de título sobre o topo da página: essa faixa fica fora do recorte.
 TOP_GUARD = 4   # 4 px dá pixel inteiro em 100/125/150/175% (o CSS usa o mesmo valor)
 RIGHT_INSET = 1  # px CSS: o contorno fica 1 px para dentro à direita (o CSS usa o mesmo valor)
@@ -154,6 +154,24 @@ ole32.CoInitialize.argtypes = [wintypes.LPVOID]
 ole32.CLSIDFromString.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(GUID)]
 ole32.CoCreateInstance.argtypes = [ctypes.POINTER(GUID), wintypes.LPVOID, wintypes.DWORD,
                                    ctypes.POINTER(GUID), ctypes.POINTER(wintypes.LPVOID)]
+
+
+dwmapi = ctypes.WinDLL("dwmapi")
+dwmapi.DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD]
+
+
+def _dwm_plain(hwnd) -> None:
+    """Tira toda a pintura do Windows em volta da página: sem moldura, borda, fundo (Mica)
+    nem cantos do sistema. Sem isso o Windows preenche o retângulo inteiro da janela com um
+    fundo escuro, que aparece como uma "sobra" em cima e dos lados do painel."""
+    for attr, value in (
+        (2, 1),            # DWMWA_NCRENDERING_POLICY = DWMNCRP_DISABLED
+        (34, 0xFFFFFFFE),  # DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE
+        (33, 1),           # DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_DONOTROUND (o recorte arredonda)
+        (38, 1),           # DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_NONE
+    ):
+        v = wintypes.DWORD(value)
+        dwmapi.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(v), 4)
 
 
 def _taskbar_delete_tab(hwnd) -> None:
@@ -438,8 +456,10 @@ class Tray:
     def _styles_ok(self, hwnd) -> bool:
         st = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
         ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        # (Não exige "sempre por cima": o Edge o remove da própria janela e brigar com ele causaria
+        #  reajustes sem fim. A janelinha abre em primeiro plano e fecha ao perder o foco.)
         return (not (st & FRAME_STYLES) and bool(ex & WS_EX_TOOLWINDOW)
-                and not (ex & WS_EX_APPWINDOW) and bool(ex & WS_EX_TOPMOST))
+                and not (ex & WS_EX_APPWINDOW))
 
     def _apply_shape(self, hwnd, child, s, x, y, w, h, first: bool):
         # 1) Sem moldura do Windows: sem barra de título, nada de botões desenhados pelo sistema.
@@ -455,6 +475,7 @@ class Tray:
             user32.SetWindowPos(hwnd, None, 0, 0, 0, 0,
                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
             _taskbar_delete_tab(hwnd)
+        _dwm_plain(hwnd)
         # 2) Posiciona a página exatamente no canto.
         left, top, right, bottom = self.frame = self._frame_of(hwnd, child)
         user32.SetWindowPos(hwnd, HWND_TOPMOST, x - left, y - top, w + left + right, h + top + bottom,

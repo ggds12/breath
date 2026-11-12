@@ -59,7 +59,14 @@ def parse(data: dict, plan: str | None) -> dict:
                   windows=wins, source="api")
 
 
+_backoff_until = 0.0   # depois de um 429, espera antes de consultar de novo
+
+
 def collect() -> dict:
+    global _backoff_until
+    if time.time() < _backoff_until:
+        return result("claude", NAME, status="error",
+                      message="A Anthropic pediu uma pausa nas consultas; tentando de novo em instantes.")
     token, expires, plan = _read_token()
     if not token:
         return result("claude", NAME, status="missing",
@@ -73,6 +80,10 @@ def collect() -> dict:
             "anthropic-beta": "oauth-2025-04-20",
         })
     except net.HttpError as exc:
+        if exc.status == 429:
+            _backoff_until = time.time() + 300
+            return result("claude", NAME, status="error", plan=plan,
+                          message="A Anthropic pediu uma pausa nas consultas; tentando de novo em 5 min.")
         if exc.status in (401, 403):
             return result("claude", NAME, status="expired", plan=plan,
                           message="A Anthropic recusou o token. Abra o Claude Code para renovar.")

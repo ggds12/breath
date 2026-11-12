@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
-from .config import BIND_HOST, FORCE_MIN_INTERVAL, LIMITS_TTL, PORT, WEB_DIR
+from .config import BIND_HOST, CACHE_FILE, FORCE_MIN_INTERVAL, LIMITS_TTL, PORT, WEB_DIR
 from .providers import claude, codex, now_iso
 
 STATIC_TYPES = {
@@ -54,9 +54,38 @@ SECURITY_HEADERS = {
 class State:
     def __init__(self):
         self.lock = threading.Lock()
-        self.limits: list[dict] = []
+        self.limits: list[dict] = self._load_cache()
         self.fetched = 0.0
         self.pool = ThreadPoolExecutor(max_workers=2)
+
+    # Última leitura boa em disco: só porcentagens, horários e rótulos (nenhum segredo).
+    # Serve para mostrar dados logo ao abrir e quando o provedor recusar uma consulta.
+    @staticmethod
+    def _load_cache() -> list[dict]:
+        try:
+            data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        if not isinstance(data, list):
+            return []
+        out = []
+        for p in data:
+            if isinstance(p, dict) and p.get("id") in ("claude", "codex") and isinstance(p.get("windows"), list):
+                out.append(dict(p, status="stale", message="Última leitura salva; atualizando…"))
+        return out
+
+    @staticmethod
+    def _save_cache(providers: list[dict]) -> None:
+        keep = [p for p in providers if p.get("status") == "ok" and p.get("windows")]
+        if not keep:
+            return
+        try:
+            CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = CACHE_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(keep, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(CACHE_FILE)
+        except OSError:
+            pass
 
     def get_limits(self, force: bool) -> list[dict]:
         with self.lock:
@@ -84,6 +113,7 @@ class State:
                     merged.append(p)
             self.limits = merged
             self.fetched = time.time()
+            self._save_cache(merged)
             return self.limits
 
 
