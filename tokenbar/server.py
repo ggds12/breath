@@ -175,15 +175,40 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, target.read_bytes(), ctype)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+
+    ap = argparse.ArgumentParser(prog="tokenbar", description="Painel local de limites do Claude e do Codex")
+    ap.add_argument("--no-tray", action="store_true", help="só o servidor, sem ícone na bandeja")
+    ap.add_argument("--show", action="store_true", help="abre a janelinha ao iniciar")
+    args = ap.parse_args(argv)
+    use_tray = sys.platform == "win32" and not args.no_tray
+
     mimetypes.init()
-    WEB_DIR.resolve()
-    httpd = ThreadingHTTPServer((BIND_HOST, PORT), Handler)
+    try:
+        httpd = ThreadingHTTPServer((BIND_HOST, PORT), Handler)
+    except OSError:
+        msg = f"A porta {PORT} já está em uso. O TokenBar provavelmente já está aberto (veja os ícones ocultos)."
+        if use_tray:
+            from .tray import message_box
+            message_box(msg)
+        raise SystemExit(msg)
     httpd.daemon_threads = True
     print(f"TokenBar {__version__} em http://127.0.0.1:{PORT}  (Ctrl+C para sair)", flush=True)
+
+    if not use_tray:
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            httpd.server_close()
+        return
+
+    from .tray import Tray
+
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        Tray(STATE.get_limits, on_quit=httpd.shutdown).run(show=args.show)
     finally:
         httpd.server_close()

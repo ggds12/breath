@@ -4,7 +4,7 @@
     {
       "name": "tokenbar",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "tokenbar"],
+      "runtimeArgs": ["-m", "tokenbar", "--no-tray"],
       "port": 7878,
       "url": "http://127.0.0.1:7878"
     }

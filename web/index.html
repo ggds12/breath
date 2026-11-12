@@ -28,6 +28,10 @@
         <button class="btn icon" id="theme" type="button" title="Alternar tema (T)" aria-label="Alternar tema">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
         </button>
+        <button class="btn icon mini-only" id="pin" type="button" aria-pressed="false"
+                title="Fixar: não fechar ao clicar fora (F)" aria-label="Fixar janela">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 4 3v2H6v-2l4-3zM12 14v7"/></svg>
+        </button>
       </div>
     </header>
 
@@ -57,6 +61,10 @@
         Saídas de rede: apenas api.anthropic.com e chatgpt.com.
       </span>
       <span class="mono" id="version"></span>
+    </footer>
+    <footer class="mini-foot mini-only">
+      <a href="/" target="_blank" rel="noopener">Abrir painel completo ↗</a>
+      <span class="mono" id="mini-updated"></span>
     </footer>
   </div>
 

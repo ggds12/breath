@@ -6,6 +6,28 @@ const $ = (sel, root = document) => root.querySelector(sel);
 
 const state = { data: null, lastOk: 0, loading: false, celebrate: 0 };
 
+/* ---------- janelinha da bandeja ---------- */
+const MINI = new URLSearchParams(location.search).get("mini") === "1";
+const PIN_KEY = "tokenbar.pinned";
+if (MINI) document.documentElement.classList.add("mini");
+function pinned() { try { return localStorage.getItem(PIN_KEY) === "1"; } catch { return false; } }
+function setPinned(v) {
+  try { localStorage.setItem(PIN_KEY, v ? "1" : "0"); } catch { /* ok */ }
+  $("#pin").setAttribute("aria-pressed", String(v));
+}
+if (MINI) {
+  setPinned(pinned());
+  $("#pin").addEventListener("click", () => setPinned(!pinned()));
+  // Como um menu do Windows: clicou fora, fecha (a menos que esteja fixada).
+  let blurTimer = 0;
+  window.addEventListener("blur", () => {
+    if (pinned()) return;
+    blurTimer = setTimeout(() => window.close(), 250);
+  });
+  window.addEventListener("focus", () => clearTimeout(blurTimer));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") window.close(); });
+}
+
 /* ---------- tema ---------- */
 const THEME_KEY = "tokenbar.theme";
 function storedTheme() { try { return localStorage.getItem(THEME_KEY); } catch { return null; } }
@@ -181,7 +203,9 @@ function renderWindow(w, isPrimary) {
   const reset = $(".win-reset", el);
   if (w.resets_at) {
     const at = new Date(w.resets_at);
-    reset.textContent = `reinicia em ${fmtDuration(at - Date.now())} · ${fmtResetAt(at)}`;
+    reset.textContent = MINI
+      ? `↻ ${fmtDuration(at - Date.now())} · ${fmtResetAt(at)}`
+      : `reinicia em ${fmtDuration(at - Date.now())} · ${fmtResetAt(at)}`;
   } else {
     reset.textContent = pct === 0 ? "janela livre" : "";
   }
@@ -194,8 +218,8 @@ function renderWindow(w, isPrimary) {
     const diff = Math.round(pct - p);
     const paceEl = $(".win-pace", el);
     if (Math.abs(diff) <= 3) paceEl.textContent = "no ritmo";
-    else if (diff > 0) { paceEl.textContent = `${diff} pts acima do ritmo`; paceEl.classList.add("ahead"); }
-    else { paceEl.textContent = `${-diff} pts de folga`; paceEl.classList.add("behind"); }
+    else if (diff > 0) { paceEl.textContent = MINI ? `+${diff} acima do ritmo` : `${diff} pts acima do ritmo`; paceEl.classList.add("ahead"); }
+    else { paceEl.textContent = MINI ? `${-diff} de folga` : `${-diff} pts de folga`; paceEl.classList.add("behind"); }
   }
   return el;
 }
@@ -216,7 +240,8 @@ function renderProviders(providers) {
     else if (p.source === "logs") chips.append(chip(`logs · ${p.as_of ? ago(new Date(p.as_of).getTime()) : "?"}`, "logs"));
     if (p.status === "expired") chips.append(chip("login expirado", "bad"));
     if (p.status === "missing") chips.append(chip("sem login", "bad"));
-    $(".card-msg", card).textContent = p.message || "";
+    // "Limite atingido." já aparece na barra vermelha; não repete.
+    $(".card-msg", card).textContent = p.message === "Limite atingido." ? "" : (p.message || "");
     const wins = $(".windows", card);
     p.windows.forEach((w, i) => wins.append(renderWindow(w, i < 2)));
     root.append(card);
@@ -299,7 +324,9 @@ function render() {
 }
 
 function tickUpdated() {
-  $("#updated").textContent = state.lastOk ? `atualizado ${ago(state.lastOk)}` : (state.loading ? "carregando…" : "sem dados");
+  const txt = state.lastOk ? `atualizado ${ago(state.lastOk)}` : (state.loading ? "carregando…" : "sem dados");
+  $("#updated").textContent = txt;
+  $("#mini-updated").textContent = txt;
 }
 
 async function load(force = false) {
@@ -348,6 +375,7 @@ document.addEventListener("keydown", (e) => {
   if (e.target.closest("input, textarea") || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === "r" || e.key === "R") load(true);
   if (e.key === "t" || e.key === "T") $("#theme").click();
+  if (MINI && (e.key === "f" || e.key === "F")) $("#pin").click();
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && Date.now() - state.lastOk > POLL_MS / 2) load();

@@ -18,22 +18,30 @@ Painel local para acompanhar os limites de uso do **Claude** (assinatura Pro/Max
 
 ## Uso
 
-```bash
-python -m tokenbar
-```
+O TokenBar fica nos **ícones ocultos** da barra de tarefas (a setinha `^` ao lado do relógio).
 
-Abra <http://127.0.0.1:7878>. Ou use os scripts:
+- **Clique esquerdo no ícone:** abre ou fecha a janelinha com os limites, junto ao relógio. Ela fecha sozinha quando você clica fora ou aperta `Esc`. O alfinete (ou `F`) a mantém aberta.
+- **Clique direito:** Abrir, Painel completo no navegador, Atualizar agora e Sair.
+- **Passar o mouse:** a dica mostra o uso atual, ex.: `TokenBar · Claude 22% (sem. 78%) · Codex 100% (sem. 16%)`.
+- **Notificação do Windows** quando uma janela passa de 80% ou chega a 100%.
 
 ```powershell
-# abre como app (janela própria do Edge), iniciando o servidor em segundo plano
+# inicia (ícone + janelinha)
 powershell -ExecutionPolicy Bypass -File scripts\start.ps1
 
-# cria atalhos na Área de Trabalho e no Menu Iniciar (adicione -AoIniciar para abrir com o Windows)
-powershell -ExecutionPolicy Bypass -File scripts\instalar-atalho.ps1
+# atalhos no Menu Iniciar e na Área de Trabalho; -AoIniciar inicia junto com o Windows
+powershell -ExecutionPolicy Bypass -File scripts\instalar-atalho.ps1 -AoIniciar
 
-# encerra o servidor
+# remove os atalhos
+powershell -ExecutionPolicy Bypass -File scripts\instalar-atalho.ps1 -Remover
+
+# encerra (o mesmo que "Sair" no menu do ícone)
 powershell -ExecutionPolicy Bypass -File scripts\stop.ps1
 ```
+
+Sem ícone, só o servidor: `python -m tokenbar --no-tray` e abra <http://127.0.0.1:7878>.
+
+A janelinha é o Microsoft Edge em modo app, com um perfil separado em `%LOCALAPPDATA%\TokenBar\janela`. Ela não usa seus favoritos, senhas ou cookies do Edge.
 
 ### Configuração (variáveis de ambiente)
 
@@ -73,6 +81,7 @@ tokenbar/            servidor e coletores (Python, só stdlib)
   localusage.py      tokens por dia a partir dos logs locais
   net.py             cliente HTTPS com lista de hosts permitidos
   server.py          HTTP local, API /api/status, cabeçalhos de segurança
+  tray.py            ícone na bandeja do Windows (ctypes/Win32, sem dependências)
 web/                 painel (HTML, CSS e JS sem framework) e assets da marca
 scripts/             start / stop / atalhos para Windows
 tests/

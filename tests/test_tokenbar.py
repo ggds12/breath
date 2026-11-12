@@ -60,6 +60,19 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(r["windows"][0]["used_percent"], 100.0)
 
 
+class TraySummaryTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "só Windows")
+    def test_summary_text(self):
+        from tokenbar.tray import summarize
+        txt = summarize([
+            {"id": "claude", "name": "Claude", "windows": [
+                {"id": "session", "used_percent": 22.4}, {"id": "weekly", "used_percent": 78}]},
+            {"id": "codex", "name": "Codex", "windows": []},
+        ])
+        self.assertEqual(txt, "TokenBar · Claude 22% (sem. 78%) · Codex —")
+        self.assertLess(len(txt), 128)   # limite da dica do ícone
+
+
 class LocalUsageTests(unittest.TestCase):
     def test_claude_dedupes_and_codex_uses_deltas(self):
         today = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z"
