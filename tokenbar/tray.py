@@ -45,8 +45,11 @@ SPI_GETWORKAREA = 0x30
 CREATE_NO_WINDOW = 0x08000000
 ASFW_ANY = wintypes.DWORD(0xFFFFFFFF)
 
-GWL_EXSTYLE = -20
+GWL_STYLE, GWL_EXSTYLE, GWLP_HWNDPARENT = -16, -20, -8
 WS_EX_TOOLWINDOW, WS_EX_APPWINDOW = 0x00000080, 0x00040000
+# barra de título, borda redimensionável, menu do sistema, minimizar/maximizar
+FRAME_STYLES = 0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000
+SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER = 0x0001, 0x0002, 0x0004
 SW_HIDE, SW_SHOW = 0, 5
 HWND_TOPMOST = wintypes.HWND(-1)
 SWP_NOACTIVATE, SWP_FRAMECHANGED = 0x0010, 0x0020
@@ -430,15 +433,28 @@ class Tray:
         g = getattr(self, "guard_px", 0)
         if (box.left, box.top, box.right, box.bottom) != (left, top + g, left + w, top + h):
             return False
+        return self._styles_ok(hwnd)
+
+    def _styles_ok(self, hwnd) -> bool:
+        st = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
         ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-        return bool(ex & WS_EX_TOOLWINDOW) and not (ex & WS_EX_APPWINDOW)
+        owner = user32.GetWindowLongPtrW(hwnd, GWLP_HWNDPARENT)
+        return (not (st & FRAME_STYLES) and not (ex & (WS_EX_APPWINDOW | WS_EX_TOOLWINDOW))
+                and owner == (self.hwnd or 0))
 
     def _apply_shape(self, hwnd, child, s, x, y, w, h, first: bool):
-        # 1) Fora da barra de tarefas e do Alt+Tab, sem esconder a janela (esconder tiraria o foco).
-        ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-        want = (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
-        if ex != want or first:
-            user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want)
+        # 1) Sem moldura do Windows: nada de barra de título nem botões desenhados pelo sistema.
+        #    (WS_EX_TOOLWINDOW faria o Windows desenhar uma barra com "X" que o recorte não esconde.)
+        # 2) Fora da barra de tarefas e do Alt+Tab: a janela passa a ter um "dono" invisível
+        #    (a janela do ícone), e janelas com dono não ganham botão na barra de tarefas.
+        if first or not self._styles_ok(hwnd):
+            st = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
+            ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+            user32.SetWindowLongPtrW(hwnd, GWL_STYLE, st & ~FRAME_STYLES)
+            user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex & ~(WS_EX_APPWINDOW | WS_EX_TOOLWINDOW))
+            user32.SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, self.hwnd)
+            user32.SetWindowPos(hwnd, None, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
             _taskbar_delete_tab(hwnd)
         # 2) Posiciona a página exatamente no canto.
         left, top, right, bottom = self.frame = self._frame_of(hwnd, child)
