@@ -55,6 +55,8 @@ MONITOR_DEFAULTTONEAREST = 2
 CMD_OPEN, CMD_FULL, CMD_REFRESH, CMD_QUIT = 1, 2, 3, 9
 # Tamanho da área da página, em DIPs (o mesmo que o CSS usa).
 POPUP_W, POPUP_H = 340, 392
+# O Edge desenha 1 px da barra de título sobre o topo da página: essa faixa fica fora do recorte.
+TOP_GUARD = 2
 
 
 class GUID(ctypes.Structure):
@@ -116,6 +118,7 @@ user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
 user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, wintypes.UINT]
 user32.SetWindowRgn.argtypes = [wintypes.HWND, wintypes.HANDLE, wintypes.BOOL]
+user32.GetWindowRgnBox.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
 user32.MonitorFromPoint.argtypes = [wintypes.POINT, wintypes.DWORD]
 user32.MonitorFromPoint.restype = wintypes.HANDLE
 user32.GetMonitorInfoW.argtypes = [wintypes.HANDLE, ctypes.POINTER(MONITORINFO)]
@@ -336,7 +339,7 @@ class Tray:
         except OSError:
             pass
         s = dpi_x.value / 96
-        w, h, m = round(POPUP_W * s), round(POPUP_H * s), round(12 * s)
+        w, h, m = round(POPUP_W * s), round((POPUP_H + TOP_GUARD) * s), round(12 * s)
         work = info.rcWork
         return s, work.right - m - w, work.bottom - m - h, w, h
 
@@ -379,41 +382,75 @@ class Tray:
         return found[0] if found else None
 
     def _shape_when_ready(self):
-        """Espera a janela do Edge e a transforma num painel suspenso:
-        sem botão na barra de tarefas, sem barra de título, cantos arredondados, sempre por cima."""
-        deadline = time.time() + 8
-        hwnd = child = None
-        while time.time() < deadline:
+        """Espera a janela do Edge, transforma-a num painel suspenso e fica de vigia enquanto
+        ela estiver aberta: se o Edge redesenhar a moldura (e desfizer o recorte), reaplica na hora."""
+        s, x, y, w, h = self._target()
+        deadline = time.time() + 15          # 1ª abertura após o login pode ser lenta
+        shaped: int | None = None
+        missing_since: float | None = None
+        while True:
             hwnd = self._find_popup()
             child = hwnd and self._render_child(hwnd)
-            if child:
-                break
-            time.sleep(0.01)
-        if not child:
-            return
+            if not child:
+                if shaped is None and time.time() > deadline:
+                    return
+                if shaped is not None:
+                    missing_since = missing_since or time.time()
+                    if time.time() - missing_since > 1.0:   # janela fechada
+                        return
+                time.sleep(0.02)
+                continue
+            missing_since = None
+            if hwnd != shaped:
+                self._apply_shape(hwnd, child, s, x, y, w, h, first=True)
+                shaped = hwnd
+                user32.SetForegroundWindow(hwnd)
+            elif not self._shape_ok(hwnd, child, x, y, w, h):
+                self._apply_shape(hwnd, child, s, x, y, w, h, first=False)
+            time.sleep(0.05)
 
-        # 1) Fora da barra de tarefas e do Alt+Tab, sem esconder a janela (esconder tiraria o foco).
-        ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-        user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
-        _taskbar_delete_tab(hwnd)
-
-        # 2) Mede a moldura real (barra de título + bordas) a partir da área da página.
+    def _frame_of(self, hwnd, child) -> tuple[int, int, int, int]:
+        """Moldura real do Edge (barra de título + bordas), medida pela área da página."""
         win, page = wintypes.RECT(), wintypes.RECT()
         user32.GetWindowRect(hwnd, ctypes.byref(win))
         user32.GetWindowRect(child, ctypes.byref(page))
         frame = (page.left - win.left, page.top - win.top, win.right - page.right, win.bottom - page.bottom)
-        if all(0 <= v < 200 for v in frame):
-            self.frame = frame
-        left, top, right, bottom = self.frame
+        return frame if all(0 <= v < 200 for v in frame) else self.frame
 
-        # 3) Posiciona a página exatamente no canto e recorta só ela (a barra de título fica de fora).
-        s, x, y, w, h = self._target()
+    def _shape_ok(self, hwnd, child, x, y, w, h) -> bool:
+        page, box = wintypes.RECT(), wintypes.RECT()
+        user32.GetWindowRect(child, ctypes.byref(page))
+        got = (page.left, page.top, page.right - page.left, page.bottom - page.top)
+        if any(abs(a - b) > 2 for a, b in zip(got, (x, y, w, h))):   # tolera arredondamento
+            return False
+        left, top, _, _ = self._frame_of(hwnd, child)
+        kind = user32.GetWindowRgnBox(hwnd, ctypes.byref(box))
+        if kind in (0, 1):                     # ERROR ou NULLREGION: o recorte sumiu
+            return False
+        g = getattr(self, "guard_px", 0)
+        if (box.left, box.top, box.right, box.bottom) != (left, top + g, left + w, top + h):
+            return False
+        ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        return bool(ex & WS_EX_TOOLWINDOW) and not (ex & WS_EX_APPWINDOW)
+
+    def _apply_shape(self, hwnd, child, s, x, y, w, h, first: bool):
+        # 1) Fora da barra de tarefas e do Alt+Tab, sem esconder a janela (esconder tiraria o foco).
+        ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        want = (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
+        if ex != want or first:
+            user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want)
+            _taskbar_delete_tab(hwnd)
+        # 2) Posiciona a página exatamente no canto.
+        left, top, right, bottom = self.frame = self._frame_of(hwnd, child)
         user32.SetWindowPos(hwnd, HWND_TOPMOST, x - left, y - top, w + left + right, h + top + bottom,
-                            SWP_FRAMECHANGED | SWP_NOACTIVATE)
+                            SWP_NOACTIVATE)
+        # A moldura pode mudar depois de reposicionar: mede de novo antes de recortar.
+        left, top, right, bottom = self.frame = self._frame_of(hwnd, child)
+        # 3) Recorta só a página: barra de título e bordas do Edge ficam de fora.
         radius = round(28 * s)  # diâmetro da curva = 2 × 14 px (igual ao CSS)
-        rgn = gdi32.CreateRoundRectRgn(left, top, left + w + 1, top + h + 1, radius, radius)
+        g = self.guard_px = round(TOP_GUARD * s)
+        rgn = gdi32.CreateRoundRectRgn(left, top + g, left + w + 1, top + h + 1, radius, radius)
         user32.SetWindowRgn(hwnd, rgn, True)   # o Windows passa a ser dono da região
-        user32.SetForegroundWindow(hwnd)
 
     def _close_popup(self):
         hwnd = self._find_popup()
@@ -478,6 +515,7 @@ class Tray:
         return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
 
     def run(self, show: bool = False):
+        self._close_popup()   # janelinha órfã de uma execução anterior (sem vigia)
         self._add_icon()
         user32.SetTimer(self.hwnd, 1, 60_000, None)
         self.refresh_async()

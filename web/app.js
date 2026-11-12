@@ -25,6 +25,7 @@ function setPinned(v) {
 if (MINI) {
   setPinned(pinned());
   $("#pin").addEventListener("click", () => setPinned(!pinned()));
+  $("#close").addEventListener("click", () => window.close());
   // Como um menu do Windows: clicou fora, some (a menos que esteja fixada).
   // Só fecha se a janela já tiver recebido foco de verdade e o perdido por mais de 250 ms
   // (evita fechar durante a abertura, quando o Windows ainda está ajustando a janela).

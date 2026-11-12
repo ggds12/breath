@@ -179,6 +179,39 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .swap { animation: swapIn .5s cubic-bezier(.2, .9, .3, 1); }
 @keyframes swapIn { from { opacity: 0; transform: translateY(6px); filter: blur(3px); } }
 
+/* botão fechar da janelinha: parte do próprio painel, sem barra de título */
+.head { position: relative; }
+.mini .head { padding-right: 34px; }
+.close {
+  position: fixed; top: 12px; right: 12px; z-index: 5;
+  width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  background: var(--glass);
+  color: var(--ink-3);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: color .2s, background .25s, border-color .25s, box-shadow .3s,
+              transform .45s cubic-bezier(.2, 1.5, .3, 1);
+}
+.close svg {
+  width: 12px; height: 12px; fill: none;
+  stroke: currentColor; stroke-width: 2.2; stroke-linecap: round;
+  transition: transform .45s cubic-bezier(.2, 1.5, .3, 1);
+}
+.close:hover {
+  color: #fff;
+  background: var(--bad);
+  border-color: transparent;
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--bad) 80%, transparent);
+  transform: scale(1.08);
+}
+.close:hover svg { transform: rotate(90deg); }
+.close:active { transform: scale(.9); }
+.close:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px; }
+.mini .close.mini-only { display: grid !important; }
+
 /* ---------- cartões ---------- */
 .providers { display: flex; flex-direction: column; gap: 9px; min-height: 0; transform-style: preserve-3d; }
 .card {
@@ -302,6 +335,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .mini-only { display: none !important; }
 .mini .mini-only { display: grid !important; }
 .mini .full-only { display: none !important; }
+/* faixa de 2 px no topo fica fora do recorte da janela (o Edge desenha ali a barra de título) */
+.mini .scene { height: calc(100% - 2px); margin-top: 2px; }
+.mini .close { top: 14px; }
 .mini .widget {
   border-radius: 14px;
   border: 1px solid var(--edge-hi);
