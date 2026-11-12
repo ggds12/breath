@@ -63,8 +63,8 @@ html.classList.add("boot");
 const tilt = { x: 0, y: 0, tx: 0, ty: 0, active: false, t0: performance.now() };
 window.addEventListener("pointermove", (e) => {
   const nx = e.clientX / innerWidth - 0.5, ny = e.clientY / innerHeight - 0.5;
-  tilt.tx = -ny * (MINI ? 7 : 9);
-  tilt.ty = nx * (MINI ? 9 : 12);
+  tilt.tx = -ny * (MINI ? 3.5 : 9);
+  tilt.ty = nx * (MINI ? 4.5 : 12);
   tilt.active = true;
   for (const card of document.querySelectorAll(".card")) {
     const r = card.getBoundingClientRect();
@@ -378,7 +378,7 @@ function moodFor(providers) {
       mood: "erro", eyebrow: "Limite atingido",
       headline: at ? `${first.p.name} volta às ${fmtAt(at)}` : `${first.p.name} no limite`,
       sub: others.length && free(others[0]) != null
-        ? `${others[0].name} segue com ${free(others[0])}% livre na sessão`
+        ? `${others[0].name} ainda tem ${free(others[0])}% livre`
         : at ? `em ${fmtDuration(at - Date.now())}` : "",
     };
   }
@@ -434,6 +434,13 @@ function prepareLayersOnce() {
   layersReady = true;
   // Depois da 1ª pintura liberamos a entrada em cascata (setTimeout: funciona até em 2º plano).
   setTimeout(() => html.classList.remove("boot"), 40);
+  // Terminada a entrada em cascata, as camadas passam a seguir o ponteiro (partindo do repouso).
+  setTimeout(() => {
+    tilt.x = tilt.y = 0;
+    widget.style.setProperty("--rx", "0deg");
+    widget.style.setProperty("--ry", "0deg");
+    html.classList.add("live");
+  }, 1500);
 }
 
 function tickStamp() {

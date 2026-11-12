@@ -90,6 +90,7 @@ class State:
 STATE = State()
 
 
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"TokenBar/{__version__}"
     sys_version = ""

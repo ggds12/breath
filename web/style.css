@@ -335,12 +335,27 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .mini-only { display: none !important; }
 .mini .mini-only { display: grid !important; }
 .mini .full-only { display: none !important; }
-/* faixa de 2 px no topo fica fora do recorte da janela (o Edge desenha ali a barra de título) */
-.mini .scene { height: calc(100% - 2px); margin-top: 2px; }
-.mini .close { top: 14px; }
+/* faixa de 4 px no topo fica fora do recorte da janela (o Edge desenha ali a barra de título) */
+.mini .scene { height: calc(100% - 4px); margin-top: 4px; }
+.mini .close { top: 16px; right: 13px; }
+/* Na janelinha a moldura fica parada, colada ao recorte da janela: só o conteúdo ganha
+   profundidade. (Inclinar a moldura inteira deslocava as bordas e mostrava o fundo.) */
 .mini .widget {
+  /* 1 px para dentro à direita: o Edge sem moldura às vezes não pinta a última coluna.
+     O recorte da janela (tray.py, RIGHT_INSET) termina exatamente aqui. */
+  width: calc(100% - 1px);
+  justify-self: start;
   border-radius: 14px;
   border: 1px solid var(--edge-hi);
+  transform: none;
+  perspective: 900px;
+  overflow: hidden;          /* nada passa da moldura */
+}
+.mini .layer { transform: translateZ(calc(var(--depth, 0) * .3px)); }
+.mini.boot .layer { transform: translateZ(calc(var(--depth, 0) * .3px)) translateY(14px) rotateX(-22deg); }
+.mini.live .layer {
+  transform: translateZ(calc(var(--depth, 0) * .3px)) rotateX(var(--rx)) rotateY(var(--ry));
+  transition: opacity .7s cubic-bezier(.2, .8, .2, 1);
 }
 
 /* página completa: o mesmo widget, centralizado e maior */

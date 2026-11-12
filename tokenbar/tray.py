@@ -45,8 +45,8 @@ SPI_GETWORKAREA = 0x30
 CREATE_NO_WINDOW = 0x08000000
 ASFW_ANY = wintypes.DWORD(0xFFFFFFFF)
 
-GWL_STYLE, GWL_EXSTYLE, GWLP_HWNDPARENT = -16, -20, -8
-WS_EX_TOOLWINDOW, WS_EX_APPWINDOW = 0x00000080, 0x00040000
+GWL_STYLE, GWL_EXSTYLE = -16, -20
+WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, WS_EX_TOPMOST = 0x00000080, 0x00040000, 0x00000008
 # barra de título, borda redimensionável, menu do sistema, minimizar/maximizar
 FRAME_STYLES = 0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER = 0x0001, 0x0002, 0x0004
@@ -59,7 +59,8 @@ CMD_OPEN, CMD_FULL, CMD_REFRESH, CMD_QUIT = 1, 2, 3, 9
 # Tamanho da área da página, em DIPs (o mesmo que o CSS usa).
 POPUP_W, POPUP_H = 340, 392
 # O Edge desenha 1 px da barra de título sobre o topo da página: essa faixa fica fora do recorte.
-TOP_GUARD = 2
+TOP_GUARD = 4   # 4 px dá pixel inteiro em 100/125/150/175% (o CSS usa o mesmo valor)
+RIGHT_INSET = 1  # px CSS: o contorno fica 1 px para dentro à direita (o CSS usa o mesmo valor)
 
 
 class GUID(ctypes.Structure):
@@ -430,29 +431,27 @@ class Tray:
         kind = user32.GetWindowRgnBox(hwnd, ctypes.byref(box))
         if kind in (0, 1):                     # ERROR ou NULLREGION: o recorte sumiu
             return False
-        g = getattr(self, "guard_px", 0)
-        if (box.left, box.top, box.right, box.bottom) != (left, top + g, left + w, top + h):
+        if (box.left, box.top, box.right, box.bottom) != getattr(self, "rgn_box", None):
             return False
         return self._styles_ok(hwnd)
 
     def _styles_ok(self, hwnd) -> bool:
         st = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
         ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-        owner = user32.GetWindowLongPtrW(hwnd, GWLP_HWNDPARENT)
-        return (not (st & FRAME_STYLES) and not (ex & (WS_EX_APPWINDOW | WS_EX_TOOLWINDOW))
-                and owner == (self.hwnd or 0))
+        return (not (st & FRAME_STYLES) and bool(ex & WS_EX_TOOLWINDOW)
+                and not (ex & WS_EX_APPWINDOW) and bool(ex & WS_EX_TOPMOST))
 
     def _apply_shape(self, hwnd, child, s, x, y, w, h, first: bool):
-        # 1) Sem moldura do Windows: nada de barra de título nem botões desenhados pelo sistema.
-        #    (WS_EX_TOOLWINDOW faria o Windows desenhar uma barra com "X" que o recorte não esconde.)
-        # 2) Fora da barra de tarefas e do Alt+Tab: a janela passa a ter um "dono" invisível
-        #    (a janela do ícone), e janelas com dono não ganham botão na barra de tarefas.
+        # 1) Sem moldura do Windows: sem barra de título, nada de botões desenhados pelo sistema.
+        #    (Com barra de título, o estilo "ferramenta" faz o Windows desenhar um "X" que o
+        #    recorte não esconde; sem a barra, não há o que desenhar.)
+        # 2) Estilo "ferramenta": fora da barra de tarefas e do Alt+Tab, e pode ficar por cima.
+        #    (Uma janela "dona" de outro processo também tiraria da barra, mas impede o "por cima".)
         if first or not self._styles_ok(hwnd):
             st = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
             ex = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
             user32.SetWindowLongPtrW(hwnd, GWL_STYLE, st & ~FRAME_STYLES)
-            user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex & ~(WS_EX_APPWINDOW | WS_EX_TOOLWINDOW))
-            user32.SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, self.hwnd)
+            user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
             user32.SetWindowPos(hwnd, None, 0, 0, 0, 0,
                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
             _taskbar_delete_tab(hwnd)
@@ -464,9 +463,20 @@ class Tray:
         left, top, right, bottom = self.frame = self._frame_of(hwnd, child)
         # 3) Recorta só a página: barra de título e bordas do Edge ficam de fora.
         radius = round(28 * s)  # diâmetro da curva = 2 × 14 px (igual ao CSS)
-        g = self.guard_px = round(TOP_GUARD * s)
-        rgn = gdi32.CreateRoundRectRgn(left, top + g, left + w + 1, top + h + 1, radius, radius)
+        # O recorte termina exatamente no contorno desenhado pelo CSS:
+        # - à direita, o Edge sem moldura às vezes não pinta a última coluna da página; por isso
+        #   o contorno fica 1 px (CSS) para dentro e o recorte acompanha (largura = POPUP_W - 1);
+        # - embaixo, vai até o fim da área da página.
+        page = wintypes.RECT()
+        user32.GetWindowRect(child, ctypes.byref(page))
+        pw = min(round((POPUP_W - RIGHT_INSET) * s), page.right - page.left)
+        ph = page.bottom - page.top
+        g = round(TOP_GUARD * s)
+        rgn = gdi32.CreateRoundRectRgn(left, top + g, left + pw + 1, top + ph + 1, radius, radius)
         user32.SetWindowRgn(hwnd, rgn, True)   # o Windows passa a ser dono da região
+        box = wintypes.RECT()
+        user32.GetWindowRgnBox(hwnd, ctypes.byref(box))
+        self.rgn_box = (box.left, box.top, box.right, box.bottom)
 
     def _close_popup(self):
         hwnd = self._find_popup()
