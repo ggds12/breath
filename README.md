@@ -2,7 +2,7 @@
 
 Painel local para acompanhar os limites de uso do **Claude** (assinatura Pro/Max) e do **Codex** (assinatura ChatGPT), com a identidade visual GGDS.
 
-- **Sessão (5h)** e **Semana** em anéis animados, com contagem regressiva para o reinício e um ponto de ritmo: onde você estaria se usasse a cota de forma uniforme.
+- **Sessão (5h)** e **Semana** em barras animadas, com horário e contagem regressiva do reinício e um marcador de ritmo: onde você estaria se usasse a cota de forma uniforme.
 - Limites semanais por modelo, quando a Anthropic os informa (ex.: "Semana · Opus").
 - O mascote GGDS animado muda de estado conforme a situação: pronto, buscando, atualizando, concluído, atenção, limite atingido, sem dados e em repouso.
 - Interface em camadas 3D que acompanham o ponteiro, fundo vivo, entrada em cascata e números que contam até o valor. Respeita "reduzir movimento" do Windows.
@@ -51,6 +51,8 @@ A janelinha é o Microsoft Edge em modo app, com um perfil separado em `%LOCALAP
 | `TOKENBAR_LIMITS_TTL` | `60` | Segundos entre consultas às APIs de uso |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Pasta do Claude Code |
 | `CODEX_HOME` | `~/.codex` | Pasta do Codex |
+
+A última leitura boa fica em `%LOCALAPPDATA%\TokenBar\ultima-leitura.json` (só porcentagens e horários), para a janelinha abrir já com dados e continuar mostrando algo se um provedor recusar uma consulta.
 
 ## De onde vêm os números
 
