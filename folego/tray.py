@@ -53,7 +53,7 @@ SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER = 0x0001, 0x0002, 0x0004
 SW_HIDE, SW_SHOW = 0, 5
 HWND_TOPMOST = wintypes.HWND(-1)
 SWP_NOACTIVATE, SWP_FRAMECHANGED = 0x0010, 0x0020
-MONITOR_DEFAULTTONEAREST = 2
+MONITOR_DEFAULTTOPRIMARY, MONITOR_DEFAULTTONEAREST = 1, 2
 
 CMD_OPEN, CMD_FULL, CMD_REFRESH, CMD_QUIT = 1, 2, 3, 9
 # Tamanho da área da página, em DIPs (o mesmo que o CSS usa).
@@ -235,6 +235,7 @@ class Tray:
             pass
         # Moldura do Edge em pixels; é remedida na 1ª abertura.
         self.frame = (9, 37, 8, 8)
+        self.at_cursor = True
         self._wndproc = WNDPROC(self._proc)   # manter referência viva
         self.hinst = kernel32.GetModuleHandleW(None)
         self.taskbar_created = user32.RegisterWindowMessageW("TaskbarCreated")
@@ -349,9 +350,12 @@ class Tray:
     # Geometria em pixels físicos. O processo é "per-monitor DPI aware".
     def _target(self) -> tuple[float, int, int, int, int]:
         """Escala e retângulo (x, y, w, h) onde o conteúdo deve ficar: canto do relógio."""
+        # Num clique no ícone, o monitor é o do mouse (onde está a barra de tarefas clicada).
+        # Abrindo sozinha (início do Windows), usa o monitor principal.
         pt = wintypes.POINT()
-        user32.GetCursorPos(ctypes.byref(pt))
-        mon = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
+        if self.at_cursor:
+            user32.GetCursorPos(ctypes.byref(pt))
+        mon = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY if not self.at_cursor else MONITOR_DEFAULTTONEAREST)
         info = MONITORINFO()
         info.cbSize = ctypes.sizeof(MONITORINFO)
         user32.GetMonitorInfoW(mon, ctypes.byref(info))
@@ -365,7 +369,8 @@ class Tray:
         work = info.rcWork
         return s, work.right - m - w, work.bottom - m - h, w, h
 
-    def _open_popup(self):
+    def _open_popup(self, at_cursor: bool = True):
+        self.at_cursor = at_cursor
         url = f"http://127.0.0.1:{PORT}/?mini=1"
         edge = _edge_path()
         if not edge:
@@ -567,7 +572,7 @@ class Tray:
         user32.SetTimer(self.hwnd, 1, 60_000, None)
         self.refresh_async()
         if show:
-            self._open_popup()
+            self._open_popup(at_cursor=False)
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             user32.TranslateMessage(ctypes.byref(msg))
