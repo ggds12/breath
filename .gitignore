@@ -12,3 +12,4 @@ Thumbs.db
 .credentials.json
 auth.json
 *.jsonl
+.claude/

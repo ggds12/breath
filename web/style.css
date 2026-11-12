@@ -1,4 +1,4 @@
-/* TokenBar · identidade GGDS
+/* Fôlego · identidade GGDS
    Grafite e papel como base, âmbar como luz. Inter no texto, JetBrains Mono nos números.
    Profundidade: perspectiva real (camadas em translateZ) que acompanha o ponteiro. */
 
@@ -379,6 +379,12 @@ html:not(.mini) .widget {
   font-size: 11px; color: var(--ink-3); text-align: center;
 }
 .privacy svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; }
+
+/* ---------- imagem estática (?still=1) ---------- */
+.still *, .still *::before, .still *::after { transition: none !important; animation: none !important; }
+/* o Chrome sem janela tem largura mínima maior que a janelinha: fixa a largura dela */
+.still.mini body { width: 340px; position: relative; }
+.still .close { position: absolute; }
 
 /* ---------- movimento reduzido ---------- */
 @media (prefers-reduced-motion: reduce) {

@@ -1,7 +1,7 @@
 """Limites do Claude (assinatura Pro/Max) via endpoint de uso da própria Anthropic.
 
 Lê o token OAuth que o Claude Code já guarda em ~/.claude/.credentials.json,
-apenas para leitura. O TokenBar nunca renova nem grava esse arquivo: renovar
+apenas para leitura. O Fôlego nunca renova nem grava esse arquivo: renovar
 o token giraria o refresh token e poderia deslogar o Claude Code.
 """
 

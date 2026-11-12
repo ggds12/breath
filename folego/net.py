@@ -18,7 +18,7 @@ from . import __version__
 from .config import ALLOWED_HOSTS
 
 MAX_BYTES = 1_000_000
-USER_AGENT = f"tokenbar/{__version__} (local)"
+USER_AGENT = f"folego/{__version__} (local)"
 
 
 class HttpError(Exception):

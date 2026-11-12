@@ -3,7 +3,7 @@
 Defesas:
 - Escuta apenas em 127.0.0.1.
 - Confere o cabeçalho Host (bloqueia DNS rebinding).
-- A API exige o cabeçalho `X-TokenBar: 1`. Sites externos não conseguem enviá-lo
+- A API exige o cabeçalho `X-Folego: 1`. Sites externos não conseguem enviá-lo
   sem um preflight CORS, que este servidor nunca aprova.
 - Somente GET/HEAD. Arquivos estáticos só de web/, com extensões permitidas.
 - CSP restrita, sem frames, sem cache, sem referrer.
@@ -122,14 +122,14 @@ STATE = State()
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = f"TokenBar/{__version__}"
+    server_version = f"Folego/{__version__}"
     sys_version = ""
 
     # ----- utilidades -----
     def log_message(self, fmt, *args):  # registra só método e caminho, nunca query/cabeçalhos
         if sys.stderr is None:  # pythonw (sem console)
             return
-        sys.stderr.write(f"[tokenbar] {self.command} {urlsplit(self.path).path} -> {args[1] if len(args) > 1 else ''}\n")
+        sys.stderr.write(f"[folego] {self.command} {urlsplit(self.path).path} -> {args[1] if len(args) > 1 else ''}\n")
 
     def _send(self, status: int, body: bytes, ctype: str, extra: dict | None = None):
         self.send_response(status)
@@ -170,8 +170,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # ----- API -----
     def _api(self, url):
-        if self.headers.get("X-TokenBar") != "1":
-            return self._json(403, {"error": "cabeçalho X-TokenBar ausente"})
+        if self.headers.get("X-Folego") != "1":
+            return self._json(403, {"error": "cabeçalho X-Folego ausente"})
         if self.headers.get("Origin") not in (None, f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"):
             return self._json(403, {"error": "origem não permitida"})
         if url.path == "/api/status":
@@ -204,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
 def main(argv: list[str] | None = None) -> None:
     import argparse
 
-    ap = argparse.ArgumentParser(prog="tokenbar", description="Painel local de limites do Claude e do Codex")
+    ap = argparse.ArgumentParser(prog="folego", description="Painel local de limites do Claude e do Codex")
     ap.add_argument("--no-tray", action="store_true", help="só o servidor, sem ícone na bandeja")
     ap.add_argument("--show", action="store_true", help="abre a janelinha ao iniciar")
     args = ap.parse_args(argv)
@@ -214,13 +214,13 @@ def main(argv: list[str] | None = None) -> None:
     try:
         httpd = ThreadingHTTPServer((BIND_HOST, PORT), Handler)
     except OSError:
-        msg = f"A porta {PORT} já está em uso. O TokenBar provavelmente já está aberto (veja os ícones ocultos)."
+        msg = f"A porta {PORT} já está em uso. O Fôlego provavelmente já está aberto (veja os ícones ocultos)."
         if use_tray:
             from .tray import message_box
             message_box(msg)
         raise SystemExit(msg)
     httpd.daemon_threads = True
-    print(f"TokenBar {__version__} em http://127.0.0.1:{PORT}  (Ctrl+C para sair)", flush=True)
+    print(f"Fôlego {__version__} em http://127.0.0.1:{PORT}  (Ctrl+C para sair)", flush=True)
 
     if not use_tray:
         try:

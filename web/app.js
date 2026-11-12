@@ -1,24 +1,30 @@
 "use strict";
-// TokenBar · painel. Texto vindo da API entra sempre via textContent (nunca innerHTML).
+// Fôlego · painel. Texto vindo da API entra sempre via textContent (nunca innerHTML).
 
 const POLL_MS = 60_000;
 const $ = (sel, root = document) => root.querySelector(sel);
 const html = document.documentElement;
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const PARAMS = new URLSearchParams(location.search);
+// ?still=1 desliga animações (usado para gerar imagens estáticas do README).
+const STILL = PARAMS.get("still") === "1";
+if (STILL) html.classList.add("still");
+const reduceMotion = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const state = { data: null, lastOk: 0, loading: false, busyMood: null, cards: new Map() };
 
 /* ====================== janelinha da bandeja ====================== */
-const MINI = new URLSearchParams(location.search).get("mini") === "1";
+const MINI = PARAMS.get("mini") === "1";
+// ?demo=1 mostra dados de exemplo (para prints e para conhecer a interface sem conta alguma).
+const DEMO = PARAMS.get("demo") === "1";
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* sem armazenamento: tudo bem */ } },
 };
 if (MINI) html.classList.add("mini");
 
-function pinned() { return store.get("tokenbar.pinned") === "1"; }
+function pinned() { return store.get("folego.pinned") === "1"; }
 function setPinned(v) {
-  store.set("tokenbar.pinned", v ? "1" : "0");
+  store.set("folego.pinned", v ? "1" : "0");
   $("#pin").setAttribute("aria-pressed", String(v));
 }
 if (MINI) {
@@ -40,11 +46,11 @@ if (MINI) {
 /* ============================ tema ============================ */
 function systemTheme() { return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"; }
 function applyTheme(t) { html.dataset.theme = t === "light" ? "light" : "dark"; }
-applyTheme(store.get("tokenbar.theme") || systemTheme());
+applyTheme(PARAMS.get("theme") || store.get("folego.theme") || systemTheme());
 $("#theme").addEventListener("click", () => {
   const next = html.dataset.theme === "dark" ? "light" : "dark";
   applyTheme(next);
-  store.set("tokenbar.theme", next);
+  store.set("folego.theme", next);
   setMood(currentMood, true);
 });
 
@@ -57,7 +63,7 @@ function prepareLayers() {
   });
 }
 prepareLayers();
-html.classList.add("boot");
+if (!STILL) html.classList.add("boot");
 
 const tilt = { x: 0, y: 0, tx: 0, ty: 0, active: false, t0: performance.now() };
 window.addEventListener("pointermove", (e) => {
@@ -354,7 +360,7 @@ function moodFor(providers) {
     const top = warn.sort((a, b) => b.w.used_percent - a.w.used_percent)[0];
     return {
       mood: "atencao", eyebrow: "Atenção",
-      headline: `${top.p.name} em ${Math.round(top.w.used_percent)}% · ${top.w.label.toLowerCase()}`,
+      headline: `${top.p.name} em ${Math.round(top.w.used_percent)}% · ${top.w.label.replace(" · 5h", " 5h").toLowerCase()}`,
       sub: top.w.resets_at ? `reinicia em ${fmtDuration(new Date(top.w.resets_at) - Date.now())}` : "",
     };
   }
@@ -427,7 +433,22 @@ function updateTitle() {
     const w = p.windows.find((x) => x.id === "session");
     return w && w.used_percent != null ? `${p.name} ${Math.round(w.used_percent)}%` : null;
   }).filter(Boolean);
-  document.title = parts.length ? `${parts.join(" · ")} — TokenBar` : "TokenBar · GGDS";
+  document.title = parts.length ? `${parts.join(" · ")} — Fôlego` : "Fôlego · GGDS";
+}
+
+function demoData() {
+  const at = (h) => new Date(Date.now() + h * 3600e3).toISOString();
+  const win = (id, label, used, hours, seconds) => ({ id, label, used_percent: used, resets_at: at(hours), window_seconds: seconds });
+  return {
+    version: "demo",
+    providers: [
+      { id: "claude", name: "Claude", status: "ok", plan: "Pro", source: "api", message: null, as_of: at(0),
+        windows: [win("session", "Sessão · 5h", 42, 2.6, 18000), win("weekly", "Semana", 58, 63, 604800),
+                  win("weekly_opus", "Semana · Opus", 31, 63, 604800)] },
+      { id: "codex", name: "Codex", status: "ok", plan: "Plus", source: "api", message: null, as_of: at(0),
+        windows: [win("session", "Sessão · 5h", 87, 1.2, 18000), win("weekly", "Semana", 24, 141, 604800)] },
+    ],
+  };
 }
 
 async function load(force = false) {
@@ -438,11 +459,16 @@ async function load(force = false) {
   if (force || !state.data) { state.busyMood = state.data ? "processando" : null; if (!state.data) setMood("buscando"); renderHead(); }
   const started = performance.now();
   try {
-    const res = await fetch(`/api/status${force ? "?refresh=1" : ""}`, {
-      headers: { "X-TokenBar": "1" }, cache: "no-store", credentials: "omit",
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    let data;
+    if (DEMO) {
+      data = demoData();
+    } else {
+      const res = await fetch(`/api/status${force ? "?refresh=1" : ""}`, {
+        headers: { "X-Folego": "1" }, cache: "no-store", credentials: "omit",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    }
     // Deixa o "processando" respirar um pouco antes de mostrar o resultado.
     if (force) await new Promise((r) => setTimeout(r, Math.max(0, 650 - (performance.now() - started))));
     state.data = data;
@@ -460,7 +486,7 @@ async function load(force = false) {
       setMood("erro");
       setText($("#eyebrow"), "Algo deu errado");
       setText($("#headline"), "Servidor local não respondeu");
-      setText($("#sub"), "Abra o TokenBar pelo atalho e tente de novo.");
+      setText($("#sub"), "Abra o Fôlego pelo atalho e tente de novo.");
     }
   } finally {
     state.loading = false;

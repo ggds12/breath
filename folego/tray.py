@@ -191,7 +191,7 @@ def _taskbar_delete_tab(hwnd) -> None:
     release(ptr)
 
 
-def message_box(text: str, title: str = "TokenBar") -> None:
+def message_box(text: str, title: str = "Fôlego") -> None:
     user32.MessageBoxW(None, text, title, 0x40)
 
 
@@ -216,7 +216,7 @@ def summarize(providers: list[dict]) -> str:
             parts.append(txt)
         else:
             parts.append(f"{p['name']} —")
-    return "TokenBar · " + " · ".join(parts)
+    return "Fôlego · " + " · ".join(parts)
 
 
 class Tray:
@@ -224,7 +224,7 @@ class Tray:
         self.get_limits = get_limits          # função(force: bool) -> list[dict]
         self.on_quit = on_quit
         self.popup: subprocess.Popen | None = None
-        self.tip = "TokenBar"
+        self.tip = "Fôlego"
         self.alerted: dict[str, int] = {}      # chave da janela -> último nível avisado (80/100)
         self.pending_balloon: tuple[str, str, int] | None = None
         self.lock = threading.Lock()
@@ -238,16 +238,16 @@ class Tray:
         self._wndproc = WNDPROC(self._proc)   # manter referência viva
         self.hinst = kernel32.GetModuleHandleW(None)
         self.taskbar_created = user32.RegisterWindowMessageW("TaskbarCreated")
-        ico = WEB_DIR / "assets" / "tokenbar.ico"
+        ico = WEB_DIR / "assets" / "folego.ico"
         self.hicon = user32.LoadImageW(None, str(ico), IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE)
 
         wc = WNDCLASSEXW()
         wc.cbSize = ctypes.sizeof(WNDCLASSEXW)
         wc.lpfnWndProc = self._wndproc
         wc.hInstance = self.hinst
-        wc.lpszClassName = "TokenBarTrayWindow"
+        wc.lpszClassName = "FolegoTrayWindow"
         user32.RegisterClassExW(ctypes.byref(wc))
-        self.hwnd = user32.CreateWindowExW(0, wc.lpszClassName, "TokenBar", 0,
+        self.hwnd = user32.CreateWindowExW(0, wc.lpszClassName, "Fôlego", 0,
                                            0, 0, 0, 0, None, None, self.hinst, None)
 
     # ----- ícone -----
@@ -308,7 +308,7 @@ class Tray:
     # ----- janela suspensa -----
     @staticmethod
     def _find_popup() -> int | None:
-        """Janela de app do Edge com o painel (título termina em 'TokenBar' ou 'TokenBar · GGDS').
+        """Janela de app do Edge com o painel (título termina em 'Fôlego' ou 'Fôlego · GGDS').
 
         Janelas normais do Edge têm o sufixo do navegador no título, então não são confundidas.
         """
@@ -324,7 +324,7 @@ class Tray:
                 return True
             buf = ctypes.create_unicode_buffer(256)
             user32.GetWindowTextW(hwnd, buf, 256)
-            if buf.value.endswith("— TokenBar") or buf.value == "TokenBar · GGDS":
+            if buf.value.endswith("— Fôlego") or buf.value == "Fôlego · GGDS":
                 found.append(hwnd)
                 return False
             return True
@@ -373,7 +373,7 @@ class Tray:
             return
         s, x, y, w, h = self._target()
         left, top, right, bottom = self.frame   # moldura do Edge (barra de título, bordas)
-        profile = Path(os.environ.get("LOCALAPPDATA", Path.home()), "TokenBar", "janela")
+        profile = Path(os.environ.get("LOCALAPPDATA", Path.home()), "Folego", "janela")
         profile.mkdir(parents=True, exist_ok=True)
         # Deixa o Edge vir para a frente com foco (necessário para "clicou fora, fecha").
         user32.AllowSetForegroundWindow(ASFW_ANY)
@@ -511,7 +511,7 @@ class Tray:
         user32.AppendMenuW(menu, MF_STRING, CMD_FULL, "Painel completo no navegador")
         user32.AppendMenuW(menu, MF_STRING, CMD_REFRESH, "Atualizar agora")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-        user32.AppendMenuW(menu, MF_STRING, CMD_QUIT, "Sair do TokenBar")
+        user32.AppendMenuW(menu, MF_STRING, CMD_QUIT, "Sair do Fôlego")
         pt = wintypes.POINT()
         user32.GetCursorPos(ctypes.byref(pt))
         user32.SetForegroundWindow(self.hwnd)

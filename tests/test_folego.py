@@ -12,13 +12,13 @@ import time
 import unittest
 from pathlib import Path
 
-os.environ["TOKENBAR_PORT"] = "17878"
-_tmp = tempfile.mkdtemp(prefix="tokenbar-test-")
+os.environ["FOLEGO_PORT"] = "17878"
+_tmp = tempfile.mkdtemp(prefix="folego-test-")
 os.environ["CLAUDE_CONFIG_DIR"] = str(Path(_tmp, "claude"))
 os.environ["CODEX_HOME"] = str(Path(_tmp, "codex"))
 
-from tokenbar import net, server  # noqa: E402
-from tokenbar.providers import claude, codex  # noqa: E402
+from folego import net, server  # noqa: E402
+from folego.providers import claude, codex  # noqa: E402
 
 
 class ParserTests(unittest.TestCase):
@@ -63,13 +63,13 @@ class ParserTests(unittest.TestCase):
 class TraySummaryTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "só Windows")
     def test_summary_text(self):
-        from tokenbar.tray import summarize
+        from folego.tray import summarize
         txt = summarize([
             {"id": "claude", "name": "Claude", "windows": [
                 {"id": "session", "used_percent": 22.4}, {"id": "weekly", "used_percent": 78}]},
             {"id": "codex", "name": "Codex", "windows": []},
         ])
-        self.assertEqual(txt, "TokenBar · Claude 22% (sem. 78%) · Codex —")
+        self.assertEqual(txt, "Fôlego · Claude 22% (sem. 78%) · Codex —")
         self.assertLess(len(txt), 128)   # limite da dica do ícone
 
 
@@ -111,12 +111,12 @@ class ServerTests(unittest.TestCase):
 
     def test_api_requires_header(self):
         self.assertEqual(self.req("GET", "/api/status")[0], 403)
-        st, _, body = self.req("GET", "/api/status", {"X-TokenBar": "1"})
+        st, _, body = self.req("GET", "/api/status", {"X-Folego": "1"})
         self.assertEqual(st, 200)
         self.assertIn("providers", json.loads(body))
 
     def test_foreign_origin_blocked(self):
-        st = self.req("GET", "/api/status", {"X-TokenBar": "1", "Origin": "https://evil.com"})[0]
+        st = self.req("GET", "/api/status", {"X-Folego": "1", "Origin": "https://evil.com"})[0]
         self.assertEqual(st, 403)
 
     def test_dns_rebinding_blocked(self):
@@ -127,7 +127,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(self.req(m, "/api/status")[0], 405, m)
 
     def test_path_traversal(self):
-        for p in ("/../tokenbar/config.py", "/%2e%2e/README.md", "/assets/../../tokenbar/net.py"):
+        for p in ("/../folego/config.py", "/%2e%2e/README.md", "/assets/../../folego/net.py"):
             self.assertEqual(self.req("GET", p)[0], 404, p)
 
 
