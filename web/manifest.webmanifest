@@ -1,0 +1,9 @@
+{
+  "name": "TokenBar · GGDS",
+  "short_name": "TokenBar",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161616",
+  "theme_color": "#161616",
+  "icons": [{ "src": "/assets/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

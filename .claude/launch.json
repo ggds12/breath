@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tokenbar",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "tokenbar"],
+      "port": 7878,
+      "url": "http://127.0.0.1:7878"
+    }
+  ]
+}
