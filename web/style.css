@@ -316,6 +316,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @keyframes loadbar { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 
 /* ---------- rodapé ---------- */
+/* transform-style: flat — com preserve-3d e a cena inclinada, o Edge às vezes entrega o clique
+   ao contêiner em vez do botão (mesmo plano). O rodapé não precisa de profundidade interna. */
+.foot.layer { transform-style: flat; }
 .foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
 .tools { display: flex; gap: 4px; }
 .tool {

@@ -580,6 +580,9 @@ class Tray:
             while user32.IsWindow(hwnd):
                 if self.control and self.control.take_close():
                     user32.PostMessageW(self.host, WM_APP_HIDEHOST, 0, 0)
+                if self.control and self.control.take_open_full():
+                    user32.PostMessageW(self.host, WM_APP_HIDEHOST, 0, 0)
+                    webbrowser.open(f"http://127.0.0.1:{PORT}/")
                 if user32.IsWindowVisible(self.host) and user32.IsWindow(child):
                     g = round(TOP_GUARD * self.geom[0])
                     page, hr = wintypes.RECT(), wintypes.RECT()

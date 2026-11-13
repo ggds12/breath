@@ -38,6 +38,9 @@ if (MINI) {
   setPinned(pinned());
   $("#pin").addEventListener("click", () => setPinned(!pinned()));
   $("#close").addEventListener("click", closeMini);
+  // Abrir o painel completo: quem abre é o Fôlego, no seu navegador padrão
+  // (um link comum abriria outra janela deste Edge escondido, fora da tela).
+  $("#expand").addEventListener("click", (e) => { e.preventDefault(); tell("/api/open-full"); });
   // Como um menu do Windows: clicou fora, some (a menos que esteja fixada).
 }
 

@@ -126,6 +126,18 @@ class ServerTests(unittest.TestCase):
         for m in ("POST", "PUT", "DELETE", "OPTIONS"):
             self.assertEqual(self.req(m, "/api/status")[0], 405, m)
 
+    def test_popup_commands(self):
+        self.assertEqual(self.req("GET", "/api/pin?on=1")[0], 403)         # exige o cabeçalho
+        self.assertEqual(self.req("GET", "/api/pin?on=1", {"X-Folego": "1"})[0], 200)
+        self.assertTrue(server.CONTROL.pinned)
+        self.req("GET", "/api/pin?on=0", {"X-Folego": "1"})
+        self.assertFalse(server.CONTROL.pinned)
+        self.req("GET", "/api/close", {"X-Folego": "1"})
+        self.assertTrue(server.CONTROL.take_close())
+        self.assertFalse(server.CONTROL.take_close())                       # é consumido uma vez
+        self.req("GET", "/api/open-full", {"X-Folego": "1"})
+        self.assertTrue(server.CONTROL.take_open_full())
+
     def test_path_traversal(self):
         for p in ("/../folego/config.py", "/%2e%2e/README.md", "/assets/../../folego/net.py"):
             self.assertEqual(self.req("GET", p)[0], 404, p)

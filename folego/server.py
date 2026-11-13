@@ -127,6 +127,7 @@ class Control:
         self._lock = threading.Lock()
         self.pinned = False
         self._close = False
+        self._open_full = False
 
     def set_pinned(self, value: bool) -> None:
         with self._lock:
@@ -135,6 +136,15 @@ class Control:
     def request_close(self) -> None:
         with self._lock:
             self._close = True
+
+    def request_open_full(self) -> None:
+        with self._lock:
+            self._open_full = True
+
+    def take_open_full(self) -> bool:
+        with self._lock:
+            requested, self._open_full = self._open_full, False
+            return requested
 
     def take_close(self) -> bool:
         with self._lock:
@@ -213,6 +223,9 @@ class Handler(BaseHTTPRequestHandler):
             })
         if url.path == "/api/pin":
             CONTROL.set_pinned(parse_qs(url.query).get("on") == ["1"])
+            return self._json(200, {"ok": True})
+        if url.path == "/api/open-full":
+            CONTROL.request_open_full()
             return self._json(200, {"ok": True})
         if url.path == "/api/close":
             CONTROL.request_close()
