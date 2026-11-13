@@ -14,6 +14,7 @@ const state = { data: null, lastOk: 0, loading: false, busyMood: null, cards: ne
 
 /* ====================== janelinha da bandeja ====================== */
 const MINI = PARAMS.get("mini") === "1";
+let reportSizeSoon = () => {};   // a janelinha recalcula a altura (definida abaixo, no modo janelinha)
 // ?demo=1 mostra dados de exemplo (para prints e para conhecer a interface sem conta alguma).
 const DEMO = PARAMS.get("demo") === "1";
 const store = {
@@ -47,10 +48,14 @@ if (MINI) {
     const gaps = parseFloat(cs.rowGap || cs.gap || 0) * Math.max(0, kids.length - 1);
     const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
     const content = kids.reduce((acc, k) => acc + (k.id === "providers" ? k.scrollHeight : k.offsetHeight), 0);
-    const h = Math.ceil(content + gaps + pad) + 1;          // +1: recuo de 1 px embaixo
+    const sheet = $("#sheet");
+    const sheetH = sheet.hidden ? 0 : sheet.scrollHeight;
+    const h = Math.max(Math.ceil(content + gaps + pad) + 1, sheetH + 1);   // +1: recuo de 1 px embaixo
     if (Math.abs(h - lastSize) >= 2) { lastSize = h; tell(`/api/size?h=${h}`); }
   };
   new ResizeObserver(reportSize).observe($("#providers"));
+  new ResizeObserver(reportSize).observe($("#add-form"));
+  reportSizeSoon = () => setTimeout(reportSize, 30);
   setTimeout(reportSize, 300);
   // Abrir o painel completo: quem abre é o Breath, no seu navegador padrão
   // (um link comum abriria outra janela deste Edge escondido, fora da tela).
@@ -240,8 +245,20 @@ function updateRing(r, w) {
   const lvl = level(pct);
   r.ring.dataset.level = lvl;
   r.cell.dataset.level = lvl;
+  const textOnly = pct == null && w && w.detail;           // ex.: saldo sem orçamento
+  r.cell.classList.toggle("nobar", Boolean(textOnly));
+  r.num.classList.toggle("text", Boolean(textOnly));
   r.label.textContent = (w ? w.label : r.fallback).replace("Sessão · 5h", "Sessão 5h");
-  if (pct == null) {
+  if (textOnly) {
+    r.num.dataset.value = "";
+    r.num.firstChild.nodeValue = w.detail;
+    r.num.lastChild.textContent = "";
+  } else {
+    r.num.lastChild.textContent = "%";
+  }
+  if (textOnly) {
+    r.fill.style.setProperty("width", "0%");
+  } else if (pct == null) {
     r.num.dataset.value = "";          // cancela contagens em andamento
     r.num.firstChild.nodeValue = "–";
     r.fill.style.setProperty("width", "0%");
@@ -255,7 +272,9 @@ function updateRing(r, w) {
     r.reset.textContent = `↻ ${fmtAt(at)} · em ${fmtDuration(at - Date.now())}`;
     r.cell.title = `${w.label}: ${Math.round(pct ?? 0)}% usado · reinicia ${at.toLocaleString("pt-BR")}`;
   } else {
-    r.reset.textContent = pct === 0 ? "janela livre" : pct == null ? "sem dados" : "";
+    r.reset.textContent = w && (w.hint || (pct != null && w.detail))
+      ? (w.hint || w.detail)
+      : pct === 0 ? "janela livre" : pct == null ? "sem dados" : "";
     r.cell.removeAttribute("title");
   }
   const p = w ? paceOf(w) : null;
@@ -286,6 +305,19 @@ function getCard(p, index) {
   rings[1].fallback = "Semana";
   $(".rings", el).append(rings[0].cell, rings[1].cell);
   c = { el, rings, extras: new Map() };
+  const rm = $(".p-remove", el);
+  let armed = 0;
+  rm.addEventListener("click", async () => {
+    if (!armed) {                                   // 1º clique: pede confirmação
+      rm.classList.add("confirm"); rm.textContent = "remover?";
+      armed = setTimeout(() => { armed = 0; rm.classList.remove("confirm"); rm.replaceChildren(rmIcon.cloneNode(true)); }, 3000);
+      return;
+    }
+    clearTimeout(armed); armed = 0;
+    await post("/api/accounts/remove", { id: p.id });
+    setTimeout(() => load(), 150);
+  });
+  const rmIcon = rm.firstElementChild.cloneNode(true);
   state.cards.set(p.id, c);
   $("#providers").append(el);
   return c;
@@ -294,6 +326,7 @@ function getCard(p, index) {
 function updateCard(p, index) {
   const c = getCard(p, index);
   c.el.classList.toggle("ghost", !p.windows);
+  $(".p-remove", c.el).hidden = !p.windows || DEMO;
   $(".p-name", c.el).textContent = p.name;
   $(".p-plan", c.el).textContent = p.plan || "";
   const live = $(".p-live", c.el);
@@ -301,16 +334,19 @@ function updateCard(p, index) {
   if (!p.windows) live.textContent = "";
   else if (p.source === "api") { live.textContent = "ao vivo"; live.classList.add("live"); }
   else if (p.source === "logs") { live.textContent = `log ${p.as_of ? ago(new Date(p.as_of).getTime()) : ""}`; live.classList.add("logs"); }
-  else if (p.status === "expired") { live.textContent = "login expirado"; live.classList.add("bad"); }
-  else if (p.status === "missing") { live.textContent = "sem login"; live.classList.add("bad"); }
+  else if (p.status === "expired") { live.textContent = p.kind === "api" ? "chave recusada" : "login expirado"; live.classList.add("bad"); }
+  else if (p.status === "missing") { live.textContent = p.kind === "api" ? "sem chave" : "sem login"; live.classList.add("bad"); }
   else live.textContent = "";
   const msg = p.message && p.message !== "Limite atingido." ? p.message : "";
   $(".p-msg", c.el).textContent = msg;
   $(".p-msg", c.el).title = msg;
 
   const wins = p.windows || [];
+  const api = p.kind === "api";                       // conta por chave de API: saldo/crédito, sem "sessão/semana"
   const session = wins.find((w) => w.id === "session") || wins[0];
-  const weekly = wins.find((w) => w.id === "weekly") || wins.find((w) => w !== session);
+  const weekly = wins.find((w) => w.id === "weekly") || (api ? undefined : wins.find((w) => w !== session));
+  c.rings[0].fallback = api ? (p.provider === "openrouter" ? "Crédito" : "Saldo") : "Sessão 5h";
+  c.rings[1].cell.hidden = api && !weekly;
   updateRing(c.rings[0], session || null);
   updateRing(c.rings[1], weekly || null);
 
@@ -384,7 +420,7 @@ function moodFor(providers) {
     return {
       mood: broken.some((p) => p.status === "missing") ? "vazio" : broken.some((p) => p.status === "error") ? "erro" : "atencao",
       eyebrow: "Precisa de você",
-      headline: `${broken.map((p) => p.name).join(" e ")}: ${why}`,
+      headline: broken.length > 1 ? `${broken.length} contas precisam de você` : `${broken[0].name}: ${why}`,
       sub: "Detalhes no cartão abaixo",
     };
   }
@@ -467,9 +503,86 @@ function demoData() {
                   win("weekly_opus", "Semana · Opus", 31, 63, 604800)] },
       { id: "codex", name: "Codex", status: "ok", plan: "Plus", source: "api", message: null, as_of: at(0),
         windows: [win("session", "Sessão · 5h", 87, 1.2, 18000), win("weekly", "Semana", 24, 141, 604800)] },
+      { id: "openrouter:gemini", name: "Gemini · OpenRouter", kind: "api", provider: "openrouter", status: "ok", source: "api",
+        message: null, as_of: at(0), windows: [{ id: "credit", label: "Crédito · mês", used_percent: 32,
+          resets_at: null, window_seconds: null, detail: "US$ 6,40 de US$ 20,00" }] },
+      { id: "deepseek:deepseek", name: "DeepSeek", kind: "api", provider: "deepseek", status: "ok", source: "api",
+        message: null, as_of: at(0), windows: [{ id: "balance", label: "Saldo", used_percent: null,
+          resets_at: null, window_seconds: null, detail: "US$ 12,80", hint: "sem orçamento" }] },
     ],
   };
 }
+
+/* ============================ adicionar conta ============================ */
+async function post(path, body) {
+  try {
+    const res = await fetch(path, {
+      method: "POST", body: JSON.stringify(body), cache: "no-store", credentials: "omit",
+      headers: { "X-Breath": "1", "Content-Type": "application/json" },
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, ...data } : { ok: false, error: data.error || `HTTP ${res.status}` };
+  } catch {
+    return { ok: false, error: "o Breath não respondeu" };
+  }
+}
+
+const NOTES = {
+  claude: "Use uma pasta onde você fez login com outra conta. Para criar: <code>$env:CLAUDE_CONFIG_DIR=\"$HOME\\.claude-trabalho\"; claude</code>",
+  codex: "Use uma pasta onde você fez login com outra conta. Para criar: <code>$env:CODEX_HOME=\"$HOME\\.codex-trabalho\"; codex</code>",
+  openrouter: "Uma chave de openrouter.ai/keys dá acesso a Gemini, Grok, DeepSeek, Llama e outros. Mostra o crédito usado e o limite da chave.",
+  deepseek: "Chave de platform.deepseek.com. Mostra o saldo; com orçamento, vira barra.",
+  kimi: "Chave de platform.kimi.ai (ou .cn). Mostra o saldo; com orçamento, vira barra.",
+  custom: "Para qualquer IA que tenha um endereço de uso/saldo: o Breath faz GET com a sua chave no cabeçalho e lê os campos do JSON (ex.: <code>data.balance</code>, <code>items.0.used</code>).",
+};
+
+function syncForm() {
+  const tipo = $("#f-tipo").value;
+  document.querySelectorAll("#add-form [data-show]").forEach((el) => {
+    if (el.dataset.show.split(" ").includes(tipo)) el.removeAttribute("data-off"); else el.setAttribute("data-off", "");
+  });
+  const note = $("#f-note");
+  note.replaceChildren();
+  // texto fixo nosso (não vem do servidor): monta os <code> sem innerHTML
+  NOTES[tipo].split(/(<code>.*?<\/code>)/).forEach((part) => {
+    if (part.startsWith("<code>")) { const c = document.createElement("code"); c.textContent = part.slice(6, -7); note.append(c); }
+    else note.append(document.createTextNode(part));
+  });
+  $("#f-err").textContent = "";
+  reportSizeSoon();
+}
+
+function openSheet() {
+  if (DEMO) return;
+  $("#sheet").hidden = false;
+  syncForm();
+  setTimeout(() => $("#f-tipo").focus(), 50);
+}
+function closeSheet() {
+  $("#sheet").hidden = true;
+  $("#add-form").reset();
+  reportSizeSoon();
+}
+
+$("#add").addEventListener("click", openSheet);
+$("#sheet-close").addEventListener("click", closeSheet);
+$("#f-tipo").addEventListener("change", syncForm);
+$("#add-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.currentTarget, btn = $("#f-submit");
+  const tipo = $("#f-tipo").value;
+  const body = { tipo };
+  form.querySelectorAll("input, select").forEach((el) => {
+    if (el.name && el.name !== "tipo" && !el.closest("[data-off]") && el.value.trim()) body[el.name] = el.value;
+  });
+  btn.disabled = true; btn.textContent = "Adicionando…";
+  const res = await post("/api/accounts/add", body);
+  form.querySelector('[name="chave"]').value = "";      // a chave não fica na página
+  btn.disabled = false; btn.textContent = "Adicionar";
+  if (!res.ok) { $("#f-err").textContent = res.error; return; }
+  closeSheet();
+  setTimeout(() => load(), 200);
+});
 
 async function load(force = false) {
   if (state.loading) return;
@@ -518,6 +631,9 @@ async function load(force = false) {
 $("#refresh").addEventListener("click", () => load(true));
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "Escape" && !$("#sheet").hidden) { closeSheet(); return; }
+  if (e.target.closest && e.target.closest("input, select, textarea")) return;
+  if (e.key.toLowerCase() === "a") { openSheet(); return; }
   const k = e.key.toLowerCase();
   if (k === "r") load(true);
   else if (k === "t") $("#theme").click();

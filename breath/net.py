@@ -1,7 +1,8 @@
 """Cliente HTTP mínimo e restrito.
 
 - Só HTTPS, com verificação de certificado (contexto padrão do sistema).
-- Só para hosts da lista em config.ALLOWED_HOSTS.
+- Só para hosts da lista em config.ALLOWED_HOSTS, ou os de uma conta que você adicionou
+  (passados explicitamente em extra_hosts; sempre HTTPS).
 - Não segue redirecionamentos (o cabeçalho Authorization nunca vai parar em outro host).
 - Limita o tamanho da resposta.
 """
@@ -38,9 +39,9 @@ _opener = urllib.request.build_opener(
 )
 
 
-def get_json(url: str, headers: dict[str, str], timeout: float = 12.0) -> dict:
+def get_json(url: str, headers: dict[str, str], timeout: float = 12.0, extra_hosts=()) -> dict:
     parts = urlsplit(url)
-    if parts.scheme != "https" or parts.hostname not in ALLOWED_HOSTS:
+    if parts.scheme != "https" or (parts.hostname not in ALLOWED_HOSTS and parts.hostname not in set(extra_hosts)):
         raise ValueError(f"host não permitido: {parts.hostname}")
     req = urllib.request.Request(
         url,

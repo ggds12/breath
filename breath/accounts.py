@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import ACCOUNTS_FILE, HOME
@@ -43,7 +43,9 @@ class Account:
     provider: str      # "claude" | "codex"
     id: str            # único: "claude", "claude:trabalho"…
     name: str          # exibido: "Claude", "Claude · Trabalho"
-    path: Path
+    path: Path | None = None
+    kind: str = "pasta"                     # "pasta" (login local) | "api" (chave de API)
+    cfg: dict = field(default_factory=dict, compare=False, hash=False)
 
 
 def _suffix_from_dir(provider: str, path: Path) -> str:
@@ -77,6 +79,7 @@ def _same(a: Path, b: Path) -> bool:
 
 def discover() -> list[Account]:
     cfg = _load_file()
+    hidden = set(x for x in cfg.get("ocultas", []) if isinstance(x, str))
     accounts: list[Account] = []
     for pid, label, default_dir, env, marker in PROVIDERS:
         entries: list[tuple[Path, str | None]] = []
@@ -119,7 +122,128 @@ def discover() -> list[Account]:
                     n += 1
                 name = f"{label} · {suffix[:1].upper()}{suffix[1:]}"
             used_ids.add(aid)
+            if aid in hidden:
+                continue
             accounts.append(Account(pid, aid, name, path))
             if len([a for a in accounts if a.provider == pid]) >= MAX_PER_PROVIDER:
                 break
+    # contas por chave de API (DeepSeek, OpenRouter, Kimi, "Outra IA")
+    from .providers.apis import TYPES
+    for item in (cfg.get("apis") or [])[:20]:
+        if not (isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("tipo") in TYPES):
+            continue
+        nome = item.get("nome") if isinstance(item.get("nome"), str) else TYPES[item["tipo"]][0]
+        accounts.append(Account(item["tipo"], item["id"], nome[:40], None, "api", dict(item)))
     return accounts
+
+
+# ---------------------------------------------------------------- edição do contas.json
+API_FIELDS = {"nome", "tipo", "orcamento", "moeda", "regiao", "url", "cabecalho", "prefixo",
+              "campo_usado", "campo_limite", "campo_saldo", "rotulo"}
+
+
+def _save_file(data: dict) -> None:
+    ACCOUNTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = ACCOUNTS_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(ACCOUNTS_FILE)
+
+
+def _clean_str(v, limit=300) -> str | None:
+    return v.strip()[:limit] if isinstance(v, str) and v.strip() else None
+
+
+def add_folder(provider: str, nome: str | None, pasta: str) -> str:
+    """Acrescenta uma conta por pasta de login (Claude/Codex). Mantém as que já aparecem."""
+    if provider not in ("claude", "codex"):
+        raise ValueError("provedor inválido")
+    pasta = _clean_str(pasta, 500)
+    if not pasta:
+        raise ValueError("informe a pasta do login")
+    data = _load_file()
+    lst = data.get(provider)
+    if not isinstance(lst, list) or not lst:
+        # o arquivo passa a listar este provedor: preserva as contas que já eram encontradas
+        lst = [{"nome": (a.name.split(" · ", 1)[1] if " · " in a.name else "Principal"), "pasta": str(a.path)}
+               for a in discover() if a.provider == provider and a.kind == "pasta"]
+    lst.append({"nome": _clean_str(nome, 40) or Path(pasta).name, "pasta": pasta})
+    data[provider] = lst[:MAX_PER_PROVIDER]
+    data["ocultas"] = [x for x in data.get("ocultas", []) if not str(x).startswith(provider)]
+    _save_file(data)
+    return provider
+
+
+def add_api(fields: dict) -> str:
+    """Acrescenta uma conta por chave de API; devolve o id (a chave é guardada à parte, no cofre)."""
+    from .providers.apis import TYPES
+    tipo = fields.get("tipo")
+    if tipo not in TYPES:
+        raise ValueError("tipo inválido")
+    item = {}
+    for k in API_FIELDS:
+        v = fields.get(k)
+        if k == "orcamento":
+            try:
+                v = float(v) if v not in (None, "") else None
+            except (TypeError, ValueError):
+                raise ValueError("orçamento inválido") from None
+            if v is not None and not (0 < v < 1e7):
+                raise ValueError("orçamento inválido")
+        else:
+            v = _clean_str(v, 500 if k == "url" else 80)
+        if v is not None:
+            item[k] = v
+    item["tipo"] = tipo
+    if tipo == "custom":
+        url = item.get("url", "")
+        if not url.startswith("https://"):
+            raise ValueError("a URL precisa começar com https://")
+        if not (item.get("campo_saldo") or (item.get("campo_usado") and item.get("campo_limite"))):
+            raise ValueError("informe o campo de saldo ou os campos de usado e limite")
+    data = _load_file()
+    apis = [a for a in data.get("apis", []) if isinstance(a, dict)]
+    base = f"{tipo}:{_slug(item.get('nome') or TYPES[tipo][0])}"
+    aid, n = base, 2
+    taken = {a.get("id") for a in apis}
+    while aid in taken:
+        aid, n = f"{base}-{n}", n + 1
+    item = {"id": aid, **item}
+    apis.append(item)
+    data["apis"] = apis[:20]
+    _save_file(data)
+    return aid
+
+
+def remove(account_id: str) -> bool:
+    """Remove uma conta: as por API saem do arquivo; as por pasta deixam de ser mostradas."""
+    data = _load_file()
+    apis = [a for a in data.get("apis", []) if isinstance(a, dict)]
+    if any(a.get("id") == account_id for a in apis):
+        data["apis"] = [a for a in apis if a.get("id") != account_id]
+        _save_file(data)
+        return True
+    provider = account_id.split(":")[0]
+    if provider in ("claude", "codex"):
+        # conta de pasta listada no arquivo (ex.: adicionada pelo botão +): sai da lista
+        match = next((a for a in discover() if a.id == account_id and a.kind == "pasta"), None)
+        lst = data.get(provider)
+        if match and isinstance(lst, list) and lst:
+            keep = [e for e in lst if not (isinstance(e, dict) and isinstance(e.get("pasta"), str)
+                                          and _same(Path(os.path.expanduser(e["pasta"])), match.path))]
+            if len(keep) < len(lst):
+                default = HOME / f".{provider}"
+                only_default = (len(keep) == 1 and isinstance(keep[0], dict)
+                                and _same(Path(os.path.expanduser(str(keep[0].get("pasta", "")))), default))
+                if keep and not only_default:
+                    data[provider] = keep
+                else:
+                    data.pop(provider, None)
+                _save_file(data)
+                return True
+        # encontrada automaticamente: deixa de ser mostrada
+        hidden = set(x for x in data.get("ocultas", []) if isinstance(x, str))
+        hidden.add(account_id)
+        data["ocultas"] = sorted(hidden)
+        _save_file(data)
+        return True
+    return False

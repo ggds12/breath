@@ -386,6 +386,90 @@ html:not(.mini) .widget {
 }
 .privacy svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; }
 
+/* ---------- janelinha compacta: cada limite numa linha (rótulo · reinício · %) + barra ---------- */
+.mini .widget { padding: 10px; gap: 7px; }
+.mini .head { min-height: 48px; gap: 8px; }
+.mini .mascot { width: 46px; height: 46px; }
+.mini .head h1 { font-size: 13.5px; }
+.mini .sub { font-size: 10.5px; }
+.mini .eyebrow { font-size: 9px; }
+.mini .providers { gap: 7px; }
+.mini .card { padding: 8px 11px 9px; border-radius: 12px; }
+.mini .card-head { margin-bottom: 5px; }
+.mini .p-name { font-size: 12.5px; }
+.mini .p-msg { font-size: 10.5px; margin: -2px 0 5px; }
+.mini .rings { gap: 7px; }
+.mini .meter {
+  display: grid; grid-template-columns: auto 1fr auto; column-gap: 8px; row-gap: 3px; align-items: baseline;
+  grid-template-areas: "label reset num" "bar bar bar";
+}
+.mini .meter-top, .mini .meter-meta { display: contents; }
+.mini .meter-label { grid-area: label; font-size: 11.5px; }
+.mini .meter-reset { grid-area: reset; font-size: 9.5px; color: var(--ink-3); }
+.mini .meter-num { grid-area: num; font-size: 13px; }
+.mini .meter-pace { display: none; }
+.mini .bar { grid-area: bar; height: 5px; }
+.mini .extras { margin-top: 6px; gap: 5px; }
+.mini .tool { width: 26px; height: 26px; }
+
+.meter[hidden], .p-remove[hidden] { display: none !important; }
+/* limite sem porcentagem (ex.: saldo sem orçamento): mostra o valor, sem barra */
+.meter.nobar .bar { display: none; }
+.meter-num.text { font-size: 12px; letter-spacing: 0; }
+
+/* remover conta: aparece ao passar o mouse no cartão; 2º clique confirma */
+.p-remove {
+  width: 20px; height: 20px; margin-left: 2px; padding: 0; display: grid; place-items: center;
+  border: 0; border-radius: 6px; background: transparent; color: var(--ink-3); cursor: pointer;
+  opacity: 0; transition: opacity .2s, background .2s, color .2s;
+}
+.p-live:empty + .p-remove { margin-left: auto; }
+.card:hover .p-remove, .p-remove:focus-visible { opacity: 1; }
+.p-remove:hover { background: var(--glass-hi); color: var(--ink); }
+.p-remove svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.p-remove.confirm { opacity: 1; width: auto; padding: 0 7px; background: var(--bad); color: #fff; font: 600 10px/1 "Inter", sans-serif; }
+
+/* botão adicionar */
+.tool.add { color: var(--accent-ink); }
+
+/* painel "Adicionar conta" (por cima do conteúdo da janelinha) */
+.widget { position: relative; }
+.sheet {
+  position: absolute; inset: 0; z-index: 4; overflow-y: auto;
+  padding: 12px 14px 14px; border-radius: inherit;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(16px);
+  display: flex; flex-direction: column; gap: 10px;
+  animation: sheetIn .35s cubic-bezier(.2, .9, .3, 1);
+}
+.sheet[hidden] { display: none; }
+@keyframes sheetIn { from { opacity: 0; transform: translateY(12px); } }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head h2 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+#add-form { display: flex; flex-direction: column; gap: 9px; }
+.fld { display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; color: var(--ink-2); font-weight: 550; min-width: 0; }
+.fld input, .fld select {
+  height: 30px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--edge-hi);
+  background: var(--glass); color: var(--ink); font: 400 12px "Inter", sans-serif; outline: none; min-width: 0;
+}
+.fld select option { color: #111; }
+.fld input:focus, .fld select:focus { border-color: var(--air); box-shadow: 0 0 0 3px color-mix(in srgb, var(--air) 25%, transparent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row2:has(> .fld:only-child) { grid-template-columns: 1fr; }
+[data-off] { display: none !important; }
+.sheet-note { margin: 0; font-size: 10.5px; line-height: 1.45; color: var(--ink-3); }
+.sheet-note code { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-2); }
+.sheet-err { margin: 0; font-size: 11px; color: var(--bad); }
+.sheet-err:empty, .sheet-note:empty { display: none; }
+.primary {
+  height: 34px; border: 0; border-radius: 9px; cursor: pointer;
+  background: linear-gradient(135deg, var(--air-2), var(--air)); color: #06231d;
+  font: 650 12.5px "Inter", sans-serif; transition: transform .2s, filter .2s;
+}
+.primary:hover { filter: brightness(1.06); }
+.primary:active { transform: scale(.98); }
+.primary[disabled] { opacity: .6; cursor: default; }
+
 /* ---------- imagem estática (?still=1) ---------- */
 .still *, .still *::before, .still *::after { transition: none !important; animation: none !important; }
 /* o Chrome sem janela tem largura mínima maior que a janelinha: fixa a largura dela */

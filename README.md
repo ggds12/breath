@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>Os limites de sessão (5h) e semana do Claude Code e do Codex, num ícone ao lado do relógio do Windows.</b><br>
+  <b>Os limites do Claude Code e do Codex (sessão de 5h e semana), e o saldo de outras IAs, num ícone ao lado do relógio do Windows.</b><br>
   100% local · sem dependências · sem telemetria
 </p>
 
@@ -23,6 +23,7 @@ O Breath fica nos ícones ocultos da barra de tarefas. Um clique mostra, na hora
 - **Ritmo da semana:** um marcador na barra mostra onde você estaria se usasse a cota de forma uniforme ("5 de folga", "+8 acima do ritmo").
 - **Limites por modelo**, quando a Anthropic informa (ex.: "Semana · Opus").
 - **Várias contas:** tem mais de um login do Claude ou do Codex? Cada um ganha o seu cartão.
+- **Outras IAs:** botão **+** para acompanhar o crédito ou o saldo de **OpenRouter** (Gemini, Grok, DeepSeek, Llama e outros), **DeepSeek**, **Kimi** ou de qualquer IA que tenha um endereço de uso.
 - **Avisos do Windows** quando um limite passa de 80% ou chega a 100%.
 - **Resumo no ícone:** passe o mouse e veja `Claude 42% (sem. 58%) · Codex 87% (sem. 24%)`.
 
@@ -106,10 +107,34 @@ Quer ver a interface sem conta nenhuma? Rode `python -m breath --no-tray` e abra
 | Claude | `GET https://api.anthropic.com/api/oauth/usage` com o token de `~/.claude/.credentials.json` | Só Anthropic |
 | Codex | `GET https://chatgpt.com/backend-api/wham/usage` com o token de `~/.codex/auth.json` | Só OpenAI |
 | Codex, sem rede | Último `rate_limits` nos logs `~/.codex/sessions/**/rollout-*.jsonl` | Nenhuma |
+| OpenRouter | `GET https://openrouter.ai/api/v1/key` | Só OpenRouter |
+| DeepSeek | `GET https://api.deepseek.com/user/balance` | Só DeepSeek |
+| Kimi | `GET https://api.moonshot.ai/v1/users/me/balance` (ou `.cn`) | Só Moonshot |
+| Outra IA | `GET` no endereço https que você informar | Só esse endereço |
 
 Esses endpoints **não são APIs públicas documentadas**: são os que o próprio Claude Code e o Codex usam. Se mudarem, o Codex continua funcionando pelos logs locais, e o cartão do provedor avisa da falha.
 
 A última leitura boa fica em `%LOCALAPPDATA%\Breath\ultima-leitura.json` (só porcentagens e horários), para a janelinha abrir já com dados.
+
+## Adicionar contas e outras IAs
+
+Clique no **+** da janelinha (ou tecle `A`) e escolha o serviço:
+
+| Serviço | O que mostra | O que você informa |
+|---|---|---|
+| **Claude** / **Codex** (outra conta) | Sessão 5h e semana | A pasta onde fez login com a outra conta |
+| **OpenRouter** · Gemini, Grok, DeepSeek, Llama… | Crédito usado e limite da chave | Chave de [openrouter.ai/keys](https://openrouter.ai/keys) |
+| **DeepSeek** | Saldo | Chave de API |
+| **Kimi** (Moonshot) | Saldo | Chave de API (global ou China) |
+| **Outra IA** (personalizada) | Uso/limite ou saldo | Endereço https de uso, a chave e os campos do JSON (ex.: `data.balance`) |
+
+Saldo não tem limite natural: informe um **orçamento** (ex.: 20) e ele vira barra, mostrando quanto do orçamento já foi gasto.
+
+Para remover, passe o mouse no cartão e clique no **×** duas vezes (a segunda confirma).
+
+**E o Gemini e o Grok direto?** A cota do Gemini CLI não tem endpoint público, e o saldo do Grok (xAI) exige uma chave de gerenciamento com um endpoint que não está claramente documentado. Por isso o Breath não chuta: use os dois pelo **OpenRouter** ou configure o conector **Outra IA** se você tiver um endereço de uso.
+
+As chaves de API ficam no **Gerenciador de Credenciais do Windows**, protegidas pelo sistema, e nunca no `contas.json`, no navegador ou no log.
 
 ## Várias contas
 
@@ -161,7 +186,7 @@ Se o arquivo listar um provedor, só as contas listadas dele aparecem. A janelin
 
 **Por que aparece um processo do Edge no Gerenciador de Tarefas?** A janelinha é uma página desenhada pelo Edge dentro de uma janela do próprio Breath. Para abrir na hora, sem piscar, o Breath prepara essa página escondida assim que inicia e a mantém pronta (algo como 100 MB de memória). Ela usa um perfil separado, sem acesso aos seus favoritos, senhas ou cookies.
 
-**Funciona no macOS/Linux?** O servidor e o painel sim (`python -m breath --no-tray`); o ícone na bandeja e a janelinha são só do Windows.
+**Funciona no macOS/Linux?** O servidor e o painel sim (`python -m breath --no-tray`, e abra no navegador). O ícone escondido com a janelinha ainda é só do Windows; levar para a barra de menus do macOS e para a bandeja do Linux está nos planos.
 
 **É oficial?** Não. O Breath é um projeto independente, sem vínculo com a Anthropic ou a OpenAI.
 
@@ -179,6 +204,8 @@ breath/              servidor e coletores (Python, só biblioteca padrão)
   tray.py            ícone na bandeja e janelinha (ctypes/Win32)
 web/                 painel (HTML, CSS e JS sem framework), mascote e ícones
   accounts.py        descoberta das contas (várias por ferramenta)
+  vault.py           chaves de API no Gerenciador de Credenciais do Windows
+  providers/apis.py  conectores OpenRouter, DeepSeek, Kimi e "Outra IA"
 tools/               make_brand.py (gera mascote, símbolo e favicon) e banner.html
 scripts/             iniciar, encerrar e atalhos para Windows
 tests/

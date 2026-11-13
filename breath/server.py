@@ -23,7 +23,9 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
 from .config import BIND_HOST, CACHE_FILE, FORCE_MIN_INTERVAL, LIMITS_TTL, PORT, WEB_DIR
+from . import accounts as accounts_mod, vault
 from .accounts import discover
+from .providers import apis
 from .providers import claude, codex, now_iso
 
 STATIC_TYPES = {
@@ -72,7 +74,7 @@ class State:
         out = []
         for p in data:
             pid = p.get("id") if isinstance(p, dict) else None
-            if isinstance(pid, str) and pid.split(":")[0] in ("claude", "codex") and isinstance(p.get("windows"), list):
+            if isinstance(pid, str) and isinstance(p.get("windows"), list):
                 out.append(dict(p, status="stale", message="Última leitura salva; atualizando…"))
         return out
 
@@ -97,14 +99,20 @@ class State:
             # Uma consulta por conta (várias contas do Claude e/ou do Codex), em paralelo.
             accounts = discover()
             collectors = {"claude": claude.collect, "codex": codex.collect}
-            futures = [(acc, self.pool.submit(collectors[acc.provider], acc.path)) for acc in accounts]
+
+            def run(acc):
+                if acc.kind == "api":
+                    return apis.collect(acc.cfg, vault.get_secret(acc.id))
+                return collectors[acc.provider](acc.path)
+
+            futures = [(acc, self.pool.submit(run, acc)) for acc in accounts]
             fresh = []
             for acc, fut in futures:
                 try:
                     res = fut.result(timeout=20)
                 except Exception as exc:  # nunca derruba o painel
                     res = {"status": "error", "message": type(exc).__name__, "windows": [], "as_of": now_iso()}
-                res = dict(res, id=acc.id, name=acc.name, provider=acc.provider)
+                res = dict(res, id=acc.id, name=acc.name, provider=acc.provider, kind=acc.kind)
                 fresh.append(res)
             # Se a consulta falhou mas tínhamos dados bons, mostra os anteriores como "stale".
             previous = {p["id"]: p for p in self.limits}
@@ -215,7 +223,56 @@ class Handler(BaseHTTPRequestHandler):
     def _refuse(self):
         self._send(405, b"metodo nao permitido", "text/plain; charset=utf-8", {"Allow": "GET, HEAD"})
 
-    do_POST = do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _refuse
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _refuse
+
+    def do_POST(self):
+        """Únicas escritas: adicionar e remover contas (contas.json e cofre de chaves).
+        Mesmas defesas da API (Host, cabeçalho X-Breath, origem) + JSON pequeno."""
+        if not self._host_ok():
+            return self._send(421, b"host invalido", "text/plain; charset=utf-8")
+        url = urlsplit(self.path)
+        if url.path not in ("/api/accounts/add", "/api/accounts/remove"):
+            return self._refuse()
+        if self.headers.get("X-Breath") != "1":
+            return self._json(403, {"error": "cabeçalho X-Breath ausente"})
+        if self.headers.get("Origin") not in (None, f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"):
+            return self._json(403, {"error": "origem não permitida"})
+        if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            return self._json(415, {"error": "envie JSON"})
+        try:
+            size = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            size = -1
+        if not 0 < size <= 16_384:
+            return self._json(413, {"error": "corpo inválido"})
+        try:
+            body = json.loads(self.rfile.read(size))
+            if not isinstance(body, dict):
+                raise ValueError
+        except ValueError:
+            return self._json(400, {"error": "JSON inválido"})
+        try:
+            if url.path == "/api/accounts/add":
+                tipo = body.get("tipo")
+                if tipo in ("claude", "codex"):
+                    aid = accounts_mod.add_folder(tipo, body.get("nome"), body.get("pasta"))
+                else:
+                    key = body.get("chave")
+                    if not (isinstance(key, str) and 8 <= len(key.strip()) <= 512):
+                        return self._json(400, {"error": "informe a chave de API"})
+                    aid = accounts_mod.add_api(body)
+                    if not vault.set_secret(aid, key.strip()):
+                        accounts_mod.remove(aid)
+                        return self._json(500, {"error": "não consegui guardar a chave no cofre do Windows"})
+            else:
+                aid = body.get("id")
+                if not (isinstance(aid, str) and accounts_mod.remove(aid)):
+                    return self._json(404, {"error": "conta não encontrada"})
+                vault.delete_secret(aid)
+        except ValueError as exc:
+            return self._json(400, {"error": str(exc)})
+        STATE.fetched = 0      # próxima leitura já considera a mudança
+        return self._json(200, {"ok": True, "id": aid})
 
     # ----- API -----
     def _api(self, url):

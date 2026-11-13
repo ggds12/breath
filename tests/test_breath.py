@@ -133,6 +133,98 @@ class AccountsTests(unittest.TestCase):
         self.assertEqual([a.id for a in self.acc.discover()], ["claude", "codex"])
 
 
+class ApiConnectorTests(unittest.TestCase):
+    """Conectores por chave de API (respostas de exemplo, sem rede)."""
+
+    def setUp(self):
+        from breath.providers import apis
+        self.apis = apis
+
+    def test_deepseek_balance_with_budget(self):
+        data = {"is_available": True, "balance_infos": [{"currency": "USD", "total_balance": "15.00"}]}
+        wins, msg = self.apis._parse({"tipo": "deepseek", "orcamento": 20}, data)
+        self.assertEqual(wins[0]["used_percent"], 25.0)
+        self.assertEqual(wins[0]["detail"], "US$ 15,00")
+        self.assertIsNone(msg)
+
+    def test_deepseek_without_budget_shows_value_only(self):
+        data = {"is_available": False, "balance_infos": [{"currency": "CNY", "total_balance": "3.5"}]}
+        wins, msg = self.apis._parse({"tipo": "deepseek"}, data)
+        self.assertIsNone(wins[0]["used_percent"])
+        self.assertEqual(wins[0]["detail"], "¥ 3,50")
+        self.assertIn("insuficiente", msg)
+
+    def test_openrouter_key_limit(self):
+        data = {"data": {"limit": 100, "limit_remaining": 74.5, "usage": 25.5, "limit_reset": "monthly"}}
+        wins, _ = self.apis._parse({"tipo": "openrouter"}, data)
+        self.assertAlmostEqual(wins[0]["used_percent"], 25.5)
+        self.assertEqual(wins[0]["label"], "Crédito · mês")
+
+    def test_kimi_balance(self):
+        wins, _ = self.apis._parse({"tipo": "kimi", "orcamento": 10}, {"data": {"available_balance": 2.5}})
+        self.assertEqual(wins[0]["used_percent"], 75.0)
+
+    def test_custom_paths(self):
+        cfg = {"tipo": "custom", "campo_usado": "items.0.used", "campo_limite": "items.0.max"}
+        wins, _ = self.apis._parse(cfg, {"items": [{"used": 30, "max": 120}]})
+        self.assertEqual(wins[0]["used_percent"], 25.0)
+        wins, msg = self.apis._parse({"tipo": "custom", "campo_saldo": "nada"}, {"x": 1})
+        self.assertEqual(wins, [])
+        self.assertIn("campos", msg)
+
+    def test_custom_rejects_plain_http(self):
+        r = self.apis.collect({"tipo": "custom", "url": "http://exemplo.com/x", "campo_saldo": "a"}, "k" * 10)
+        self.assertEqual(r["status"], "error")
+
+    def test_missing_key(self):
+        self.assertEqual(self.apis.collect({"tipo": "deepseek"}, None)["status"], "missing")
+
+
+class AccountEditTests(unittest.TestCase):
+    """Adicionar/remover contas no contas.json."""
+
+    def setUp(self):
+        from breath import accounts
+        self.acc = accounts
+        self.home = Path(tempfile.mkdtemp(prefix="breath-edit-"))
+        self._old = (accounts.HOME, accounts.ACCOUNTS_FILE)
+        os.environ.pop("CLAUDE_CONFIG_DIR", None); os.environ.pop("CODEX_HOME", None)
+        accounts.HOME = self.home
+        accounts.ACCOUNTS_FILE = self.home / "contas.json"
+
+    def tearDown(self):
+        self.acc.HOME, self.acc.ACCOUNTS_FILE = self._old
+        os.environ["CLAUDE_CONFIG_DIR"] = str(Path(_tmp, "claude"))
+        os.environ["CODEX_HOME"] = str(Path(_tmp, "codex"))
+
+    def test_add_and_remove_api(self):
+        aid = self.acc.add_api({"tipo": "deepseek", "nome": "Meu DeepSeek", "orcamento": "20", "chave": "nao-salva"})
+        self.assertEqual(aid, "deepseek:meu-deepseek")
+        raw = (self.home / "contas.json").read_text(encoding="utf-8")
+        self.assertNotIn("nao-salva", raw)                       # a chave nunca vai para o arquivo
+        self.assertTrue(any(a.id == aid and a.kind == "api" for a in self.acc.discover()))
+        self.assertTrue(self.acc.remove(aid))
+        self.assertFalse(any(a.id == aid for a in self.acc.discover()))
+
+    def test_add_folder_keeps_existing_and_remove_returns_to_auto(self):
+        (self.home / ".claude").mkdir()
+        self.acc.add_folder("claude", "Trabalho", str(self.home / "outra"))
+        ids = [a.id for a in self.acc.discover() if a.provider == "claude"]
+        self.assertEqual(ids, ["claude:principal", "claude:trabalho"])
+        self.assertTrue(self.acc.remove("claude:trabalho"))
+        self.assertEqual([a.id for a in self.acc.discover() if a.provider == "claude"], ["claude"])
+
+    def test_hide_auto_discovered(self):
+        self.assertTrue(self.acc.remove("codex"))
+        self.assertFalse(any(a.id == "codex" for a in self.acc.discover()))
+
+    def test_custom_validation(self):
+        with self.assertRaises(ValueError):
+            self.acc.add_api({"tipo": "custom", "url": "https://x.com/u"})          # sem campos
+        with self.assertRaises(ValueError):
+            self.acc.add_api({"tipo": "deepseek", "orcamento": "-3"})
+
+
 class NetTests(unittest.TestCase):
     def test_rejects_unknown_host_and_http(self):
         with self.assertRaises(ValueError):
@@ -196,6 +288,42 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(server.CONTROL.take_close())                       # é consumido uma vez
         self.req("GET", "/api/open-full", {"X-Breath": "1"})
         self.assertTrue(server.CONTROL.take_open_full())
+
+    def _post(self, path, body, headers=None):
+        c = http.client.HTTPConnection("127.0.0.1", 17878, timeout=5)
+        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        h = {"Content-Type": "application/json", "X-Breath": "1"}
+        h.update(headers or {})
+        c.request("POST", path, body=data, headers=h)
+        r = c.getresponse(); out = (r.status, r.read()); c.close()
+        return out
+
+    def test_account_write_endpoints_are_guarded(self):
+        self.assertEqual(self._post("/api/accounts/add", {}, {"X-Breath": ""})[0], 403)
+        self.assertEqual(self._post("/api/accounts/add", {}, {"Origin": "https://evil.com"})[0], 403)
+        self.assertEqual(self._post("/api/accounts/add", {}, {"Content-Type": "text/plain"})[0], 415)
+        self.assertEqual(self._post("/api/accounts/add", b"[]")[0], 400)
+        self.assertEqual(self._post("/api/accounts/add", b"x" * 20000)[0], 413)
+        self.assertEqual(self._post("/api/outra", {})[0], 405)
+
+    def test_add_api_account_stores_key_in_vault(self):
+        from breath import accounts
+        saved = {}
+        old = (server.vault.set_secret, server.vault.delete_secret, accounts.ACCOUNTS_FILE)
+        server.vault.set_secret = lambda aid, key: saved.__setitem__(aid, key) or True
+        server.vault.delete_secret = lambda aid: saved.pop(aid, None)
+        accounts.ACCOUNTS_FILE = Path(tempfile.mkdtemp(prefix="breath-srv-")) / "contas.json"
+        try:
+            st, body = self._post("/api/accounts/add", {"tipo": "openrouter", "nome": "OR", "chave": "sk-or-12345678"})
+            self.assertEqual(st, 200)
+            aid = json.loads(body)["id"]
+            self.assertEqual(saved[aid], "sk-or-12345678")
+            self.assertNotIn("sk-or", accounts.ACCOUNTS_FILE.read_text(encoding="utf-8"))
+            self.assertEqual(self._post("/api/accounts/add", {"tipo": "openrouter", "chave": "curta"})[0], 400)
+            self.assertEqual(self._post("/api/accounts/remove", {"id": aid})[0], 200)
+            self.assertNotIn(aid, saved)
+        finally:
+            server.vault.set_secret, server.vault.delete_secret, accounts.ACCOUNTS_FILE = old
 
     def test_path_traversal(self):
         for p in ("/../breath/config.py", "/%2e%2e/README.md", "/assets/../../breath/net.py"):

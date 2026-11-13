@@ -37,6 +37,9 @@
 
       <footer class="foot layer" data-depth="10">
         <div class="tools">
+          <button class="tool add" id="add" type="button" title="Adicionar conta (A)" aria-label="Adicionar conta">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
           <button class="tool" id="refresh" type="button" title="Atualizar (R)" aria-label="Atualizar">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
           </button>
@@ -54,12 +57,56 @@
         </div>
         <span class="stamp" id="stamp"><i class="dot"></i><span id="stamp-text">conectando</span></span>
       </footer>
+
+      <section class="sheet" id="sheet" hidden aria-labelledby="sheet-title">
+        <header class="sheet-head">
+          <h2 id="sheet-title">Adicionar conta</h2>
+          <button class="tool" id="sheet-close" type="button" title="Fechar (Esc)" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </header>
+        <form id="add-form" autocomplete="off" novalidate>
+          <label class="fld">Serviço
+            <select name="tipo" id="f-tipo">
+              <option value="claude">Claude · outra conta (pasta de login)</option>
+              <option value="codex">Codex · outra conta (pasta de login)</option>
+              <option value="openrouter">OpenRouter · Gemini, Grok, DeepSeek, Llama…</option>
+              <option value="deepseek">DeepSeek · saldo</option>
+              <option value="kimi">Kimi (Moonshot) · saldo</option>
+              <option value="custom">Outra IA · personalizada</option>
+            </select>
+          </label>
+          <label class="fld">Nome do cartão <input name="nome" maxlength="40" placeholder="Ex.: Trabalho"></label>
+          <label class="fld" data-show="claude codex">Pasta do login <input name="pasta" maxlength="500" placeholder="Ex.: C:\Users\voce\.claude-trabalho"></label>
+          <label class="fld" data-show="custom">Endereço de uso (https) <input name="url" maxlength="500" placeholder="https://api.exemplo.com/v1/balance"></label>
+          <label class="fld" data-show="openrouter deepseek kimi custom">Chave de API <input name="chave" type="password" maxlength="512" autocomplete="new-password" spellcheck="false"></label>
+          <div class="row2" data-show="custom">
+            <label class="fld">Cabeçalho <input name="cabecalho" maxlength="80" placeholder="Authorization"></label>
+            <label class="fld">Prefixo <input name="prefixo" maxlength="80" placeholder="Bearer "></label>
+          </div>
+          <div class="row2" data-show="custom">
+            <label class="fld">Campo usado <input name="campo_usado" maxlength="80" placeholder="data.used"></label>
+            <label class="fld">Campo limite <input name="campo_limite" maxlength="80" placeholder="data.limit"></label>
+          </div>
+          <label class="fld" data-show="custom">…ou campo de saldo <input name="campo_saldo" maxlength="80" placeholder="data.balance"></label>
+          <div class="row2" data-show="openrouter deepseek kimi custom">
+            <label class="fld">Orçamento (opcional) <input name="orcamento" inputmode="decimal" maxlength="12" placeholder="Ex.: 20"></label>
+            <label class="fld" data-show="kimi">Região
+              <select name="regiao"><option value="">Global (.ai)</option><option value="cn">China (.cn)</option></select>
+            </label>
+            <label class="fld" data-show="custom">Moeda <input name="moeda" maxlength="8" placeholder="USD"></label>
+          </div>
+          <p class="sheet-note" id="f-note"></p>
+          <p class="sheet-err" id="f-err" role="alert"></p>
+          <button class="primary" type="submit" id="f-submit">Adicionar</button>
+        </form>
+      </section>
     </div>
   </div>
 
   <p class="privacy full-only">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>
-    100% local em 127.0.0.1 · tokens de login nunca chegam ao navegador · rede só para api.anthropic.com e chatgpt.com
+    100% local em 127.0.0.1 · chaves e tokens nunca chegam ao navegador · rede só para os serviços das suas contas
   </p>
 
   <template id="tpl-provider">
@@ -69,6 +116,9 @@
         <span class="p-name"></span>
         <span class="p-plan"></span>
         <span class="p-live"></span>
+        <button class="p-remove" type="button" title="Remover esta conta" aria-label="Remover esta conta">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+        </button>
       </header>
       <p class="p-msg"></p>
       <div class="rings"></div>
