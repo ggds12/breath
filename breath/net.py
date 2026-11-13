@@ -23,9 +23,10 @@ USER_AGENT = f"breath/{__version__} (local)"
 
 
 class HttpError(Exception):
-    def __init__(self, status: int, message: str = ""):
+    def __init__(self, status: int, message: str = "", retry_after: float | None = None):
         super().__init__(f"HTTP {status} {message}".strip())
         self.status = status
+        self.retry_after = retry_after       # segundos sugeridos pelo servidor (cabeçalho Retry-After)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -52,7 +53,11 @@ def get_json(url: str, headers: dict[str, str], timeout: float = 12.0, extra_hos
         with _opener.open(req, timeout=timeout) as resp:
             body = resp.read(MAX_BYTES + 1)
     except urllib.error.HTTPError as exc:
-        raise HttpError(exc.code) from None
+        try:
+            retry = float(exc.headers.get("Retry-After")) if exc.headers.get("Retry-After") else None
+        except (TypeError, ValueError):
+            retry = None
+        raise HttpError(exc.code, retry_after=retry) from None
     except urllib.error.URLError as exc:
         raise HttpError(0, f"sem conexão ({exc.reason})") from None
     if len(body) > MAX_BYTES:

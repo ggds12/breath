@@ -332,6 +332,10 @@ function updateCard(p, index) {
   const live = $(".p-live", c.el);
   live.className = "p-live";
   if (!p.windows) live.textContent = "";
+  else if (p.source === "api" && p.status === "stale") {
+    // dados da última leitura boa (ex.: a Anthropic pediu uma pausa nas consultas)
+    live.textContent = `leitura ${p.as_of ? ago(new Date(p.as_of).getTime()) : ""}`; live.classList.add("logs");
+  }
   else if (p.source === "api") { live.textContent = "ao vivo"; live.classList.add("live"); }
   else if (p.source === "logs") { live.textContent = `log ${p.as_of ? ago(new Date(p.as_of).getTime()) : ""}`; live.classList.add("logs"); }
   else if (p.status === "expired") { live.textContent = p.kind === "api" ? "chave recusada" : "login expirado"; live.classList.add("bad"); }

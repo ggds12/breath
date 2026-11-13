@@ -225,6 +225,75 @@ class AccountEditTests(unittest.TestCase):
             self.acc.add_api({"tipo": "deepseek", "orcamento": "-3"})
 
 
+class ClaudePacingTests(unittest.TestCase):
+    """Ritmo das consultas à Anthropic: intervalo mínimo, espera crescente após 429, última leitura."""
+
+    def setUp(self):
+        from breath import net
+        from breath.providers import claude
+        self.c, self.net = claude, net
+        self.home = Path(tempfile.mkdtemp(prefix="breath-cl-"))
+        (self.home / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+            "accessToken": "tok", "expiresAt": (time.time() + 3600) * 1000, "subscriptionType": "pro"}}), encoding="utf-8")
+        self._old = (claude.STATE_FILE, net.get_json)
+        claude.STATE_FILE = self.home / "ritmo.json"
+        self.calls = 0
+
+    def tearDown(self):
+        self.c.STATE_FILE, self.net.get_json = self._old
+
+    def _ok(self, *a, **k):
+        self.calls += 1
+        soon = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() + 3600))
+        return {"five_hour": {"utilization": 40, "resets_at": soon}, "seven_day": {"utilization": 70, "resets_at": soon}}
+
+    def _limited(self, *a, **k):
+        self.calls += 1
+        raise self.net.HttpError(429, retry_after=0)
+
+    def test_min_interval_reuses_reading(self):
+        self.net.get_json = self._ok
+        r1 = self.c.collect(self.home)
+        r2 = self.c.collect(self.home)
+        self.assertEqual(self.calls, 1)                       # a 2ª não foi à rede
+        self.assertEqual(r2["status"], "ok")
+        self.assertEqual(r2["windows"][0]["used_percent"], 40)
+
+    def test_rate_limit_shows_last_reading_and_backs_off(self):
+        self.net.get_json = self._ok
+        self.c.collect(self.home)
+        st = json.loads(self.c.STATE_FILE.read_text(encoding="utf-8"))
+        st[str(self.home)]["next_at"] = 0                      # libera a próxima consulta
+        self.c.STATE_FILE.write_text(json.dumps(st), encoding="utf-8")
+        self.net.get_json = self._limited
+        r = self.c.collect(self.home)
+        self.assertEqual(r["status"], "stale")
+        self.assertEqual(r["windows"][1]["used_percent"], 70)  # última leitura boa
+        self.assertIn("Nova tentativa", r["message"])
+        calls = self.calls
+        self.c.collect(self.home)                              # dentro da espera: não consulta
+        self.assertEqual(self.calls, calls)
+        st = json.loads(self.c.STATE_FILE.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(st[str(self.home)]["next_at"] - time.time(), 290)
+
+    def test_backoff_grows(self):
+        self.net.get_json = self._limited
+        waits = []
+        for _ in range(3):
+            self.c.collect(self.home)
+            st = json.loads(self.c.STATE_FILE.read_text(encoding="utf-8"))
+            waits.append(round(st[str(self.home)]["next_at"] - time.time()))
+            st[str(self.home)]["next_at"] = 0
+            self.c.STATE_FILE.write_text(json.dumps(st), encoding="utf-8")
+        self.assertTrue(waits[0] < waits[1] < waits[2])
+
+    def test_expired_window_resets_to_zero(self):
+        old = {"windows": [{"id": "session", "label": "Sessão · 5h", "used_percent": 90,
+                            "resets_at": "2000-01-01T00:00:00+00:00", "window_seconds": 18000}]}
+        r = self.c._from_last(old, None, time.time())
+        self.assertEqual(r["windows"][0]["used_percent"], 0.0)
+
+
 class NetTests(unittest.TestCase):
     def test_rejects_unknown_host_and_http(self):
         with self.assertRaises(ValueError):

@@ -8,11 +8,13 @@ o token giraria o refresh token e poderia deslogar o Claude Code.
 from __future__ import annotations
 
 import json
+import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .. import net
-from ..config import CLAUDE_DIR
+from ..config import CLAUDE_DIR, DATA_DIR
 from . import result, window
 
 USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
@@ -60,19 +62,81 @@ def parse(data: dict, plan: str | None) -> dict:
                   windows=wins, source="api")
 
 
-_backoff_until: dict[str, float] = {}   # por pasta: depois de um 429, espera antes de consultar de novo
+# ---------------------------------------------------------------- ritmo das consultas
+# O endpoint de uso da Anthropic limita quantas vezes o mesmo login pode consultá-lo, e o próprio
+# Claude Code também o consulta. Por isso:
+#   - no máximo 1 consulta a cada MIN_INTERVAL por conta;
+#   - depois de um 429, espera crescente (5, 10, 20, 40, 60 min) ou o Retry-After, o que for maior;
+#   - a espera e a última leitura boa ficam em disco (reiniciar o Breath não "fura a fila");
+#   - durante a espera, o cartão mostra a última leitura boa, com o horário dela.
+MIN_INTERVAL = 300
+BACKOFF_STEPS = (300, 600, 1200, 2400, 3600)
+STATE_FILE = DATA_DIR / "claude-ritmo.json"
+_lock = threading.Lock()
+
+
+def _load_state() -> dict:
+    try:
+        data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(state: dict) -> None:
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = STATE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(STATE_FILE)
+    except OSError:
+        pass
+
+
+def _hhmm(ts: float) -> str:
+    return datetime.fromtimestamp(ts).strftime("%H:%M")
+
+
+def _from_last(last: dict, message: str, as_of: float, status: str = "stale") -> dict:
+    """Reaproveita a última leitura boa; janelas que já reiniciaram desde então aparecem zeradas."""
+    now = time.time()
+    wins = []
+    for w in last.get("windows", []):
+        w = dict(w)
+        try:
+            reset = datetime.fromisoformat(w["resets_at"]).timestamp() if w.get("resets_at") else None
+        except (TypeError, ValueError):
+            reset = None
+        if reset and reset < now:
+            w["used_percent"], w["resets_at"] = 0.0, None
+        wins.append(w)
+    out = dict(last, windows=wins, status=status, message=message)
+    out["as_of"] = datetime.fromtimestamp(as_of, tz=timezone.utc).isoformat(timespec="seconds")
+    return out
 
 
 def collect(home: Path = CLAUDE_DIR) -> dict:
     key = str(home)
-    if time.time() < _backoff_until.get(key, 0):
-        return result("claude", NAME, status="error",
-                      message="A Anthropic pediu uma pausa nas consultas; tentando de novo em instantes.")
+    now = time.time()
+    with _lock:
+        st = _load_state()
+        acc = st.get(key) or {}
+    last, last_at, next_at = acc.get("last"), acc.get("last_at", 0), acc.get("next_at", 0)
+
+    if now < next_at:
+        if acc.get("fails"):
+            msg = f"A Anthropic limita as consultas de uso. Nova tentativa às {_hhmm(next_at)}."
+            if last:
+                return _from_last(last, f"Leitura de {_hhmm(last_at)}. {msg}", last_at)
+            return result("claude", NAME, status="error", message=msg)
+        if last:                                   # dentro do intervalo normal: a leitura ainda vale
+            return _from_last(last, None, last_at, status="ok")
+
     token, expires, plan = _read_token(home)
     if not token:
         return result("claude", NAME, status="missing",
                       message="Não encontrei o login do Claude Code. Rode `claude` e faça login.")
-    if expires and expires < time.time():
+    if expires and expires < now:
         return result("claude", NAME, status="expired", plan=plan,
                       message="Token expirado. Abra o Claude Code uma vez para renovar.")
     try:
@@ -82,15 +146,29 @@ def collect(home: Path = CLAUDE_DIR) -> dict:
         })
     except net.HttpError as exc:
         if exc.status == 429:
-            _backoff_until[key] = time.time() + 300
-            return result("claude", NAME, status="error", plan=plan,
-                          message="A Anthropic pediu uma pausa nas consultas; tentando de novo em 5 min.")
+            fails = int(acc.get("fails", 0)) + 1
+            wait = max(BACKOFF_STEPS[min(fails, len(BACKOFF_STEPS)) - 1], exc.retry_after or 0)
+            with _lock:
+                st = _load_state()
+                st[key] = dict(st.get(key) or {}, fails=fails, next_at=now + wait)
+                _save_state(st)
+            msg = f"A Anthropic limita as consultas de uso. Nova tentativa às {_hhmm(now + wait)}."
+            if last:
+                return _from_last(last, f"Leitura de {_hhmm(last_at)}. {msg}", last_at)
+            return result("claude", NAME, status="error", plan=plan, message=msg)
         if exc.status in (401, 403):
             return result("claude", NAME, status="expired", plan=plan,
                           message="A Anthropic recusou o token. Abra o Claude Code para renovar.")
+        if last:
+            return _from_last(last, f"Leitura de {_hhmm(last_at)}. Falha ao consultar a Anthropic ({exc}).", last_at)
         return result("claude", NAME, status="error", plan=plan,
                       message=f"Falha ao consultar a Anthropic ({exc}).")
     except (ValueError, json.JSONDecodeError):
         return result("claude", NAME, status="error", plan=plan,
                       message="Resposta inesperada da Anthropic.")
-    return parse(data, plan)
+    res = parse(data, plan)
+    with _lock:
+        st = _load_state()
+        st[key] = {"last": res, "last_at": now, "next_at": now + MIN_INTERVAL, "fails": 0}
+        _save_state(st)
+    return res
