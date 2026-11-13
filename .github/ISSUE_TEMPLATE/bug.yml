@@ -1,0 +1,35 @@
+name: Problema
+description: Algo não funciona como deveria
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por avisar! **Nunca cole chaves de API, tokens ou o conteúdo de `.credentials.json` / `auth.json` aqui.**
+        Falhas de segurança: use "Report a vulnerability" na aba Security, não uma issue pública.
+  - type: textarea
+    id: oque
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: "1. Abri a janelinha\n2. Cliquei em…\n3. Apareceu…"
+    validations:
+      required: true
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema e versões
+      placeholder: "Windows 11, Python 3.12, Breath 0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Prints ou mensagens de erro
+      description: Confira se não aparece nenhum dado pessoal antes de enviar.

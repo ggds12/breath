@@ -1,0 +1,73 @@
+# Validação de todo pull request (e de cada push na main).
+# Nenhum segredo é usado: os testes rodam sem rede e sem contas reais.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Token do GitHub só com leitura: um PR de fora não consegue escrever no repositório.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    name: testes (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, python: "3.10" }
+          - { os: windows-latest, python: "3.13" }
+          - { os: ubuntu-latest, python: "3.12" }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compila todo o código
+        run: python -m compileall -q breath tools tests
+      - name: Testes
+        run: python -m unittest discover -s tests -v
+
+  sem-dependencias:
+    name: sem dependências externas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: O app continua só com a biblioteca padrão
+        run: |
+          python - <<'EOF'
+          import tomllib, sys
+          deps = tomllib.load(open("pyproject.toml", "rb"))["project"].get("dependencies", [])
+          if deps:
+              sys.exit(f"pyproject.toml ganhou dependências obrigatórias: {deps}. "
+                       "O Breath roda só com a biblioteca padrão; use dependências opcionais.")
+          print("ok: nenhuma dependência obrigatória")
+          EOF
+
+  validacao:
+    # Check único exigido na proteção da main: só passa se tudo acima passou.
+    name: validacao
+    if: always()
+    needs: [testes, sem-dependencias]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resultado
+        run: |
+          if [ "${{ needs.testes.result }}" != "success" ] || [ "${{ needs.sem-dependencias.result }}" != "success" ]; then
+            echo "Alguma verificação falhou."; exit 1
+          fi
+          echo "Tudo certo."

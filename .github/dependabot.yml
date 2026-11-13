@@ -1,0 +1,7 @@
+# O Breath não tem dependências Python; o Dependabot mantém atualizadas as ações do CI.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

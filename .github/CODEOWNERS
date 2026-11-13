@@ -1,0 +1,9 @@
+# Toda mudança precisa da revisão do mantenedor antes de entrar na main.
+*                     @ggds12
+
+# Áreas sensíveis (credenciais, rede, servidor local, automação do repositório)
+/breath/vault.py      @ggds12
+/breath/net.py        @ggds12
+/breath/server.py     @ggds12
+/breath/providers/    @ggds12
+/.github/             @ggds12

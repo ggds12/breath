@@ -1,0 +1,15 @@
+name: Ideia ou nova IA
+description: Sugira um recurso ou um novo serviço para acompanhar
+labels: [ideia]
+body:
+  - type: textarea
+    id: ideia
+    attributes:
+      label: O que você gostaria
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Se for uma nova IA, onde ela informa uso ou saldo?
+      description: Link da documentação oficial do endpoint de uso/saldo. Sem um endpoint documentado, não dá para mostrar números confiáveis.
