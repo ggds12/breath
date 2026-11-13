@@ -48,8 +48,8 @@ def parse_api(data: dict) -> dict:
                   windows=wins, source="api", message=msg)
 
 
-def _recent_rollouts(limit: int = 20) -> list[Path]:
-    root = CODEX_DIR / "sessions"
+def _recent_rollouts(home: Path = CODEX_DIR, limit: int = 20) -> list[Path]:
+    root = home / "sessions"
     if not root.is_dir():
         return []
     cutoff = time.time() - 8 * 86400
@@ -58,9 +58,9 @@ def _recent_rollouts(limit: int = 20) -> list[Path]:
     return files[:limit]
 
 
-def latest_from_logs() -> dict | None:
+def latest_from_logs(home: Path = CODEX_DIR) -> dict | None:
     """Último snapshot de rate_limits (limit_id 'codex') nos logs locais."""
-    for path in _recent_rollouts():
+    for path in _recent_rollouts(home):
         best = None
         try:
             with path.open("r", encoding="utf-8", errors="replace") as fh:
@@ -107,17 +107,17 @@ def parse_logs(snap: dict, reason: str | None) -> dict:
                   windows=wins, source="logs", message=note, as_of=snap.get("timestamp"))
 
 
-def _read_auth() -> tuple[str | None, str | None]:
+def _read_auth(home: Path) -> tuple[str | None, str | None]:
     try:
-        data = json.loads((CODEX_DIR / "auth.json").read_text(encoding="utf-8"))
+        data = json.loads((home / "auth.json").read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return None, None
     tokens = data.get("tokens") or {}
     return tokens.get("access_token"), tokens.get("account_id")
 
 
-def collect() -> dict:
-    token, account = _read_auth()
+def collect(home: Path = CODEX_DIR) -> dict:
+    token, account = _read_auth(home)
     reason = None
     if token:
         headers = {"Authorization": f"Bearer {token}"}
@@ -133,7 +133,7 @@ def collect() -> dict:
     else:
         reason = "Login do Codex não encontrado."
 
-    snap = latest_from_logs()
+    snap = latest_from_logs(home)
     if snap:
         return parse_logs(snap, reason)
     status = "missing" if not token else "error"

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 
 from .. import net
 from ..config import CLAUDE_DIR
@@ -18,8 +19,8 @@ USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 NAME = "Claude"
 
 
-def _read_token() -> tuple[str | None, float | None, str | None]:
-    path = CLAUDE_DIR / ".credentials.json"
+def _read_token(home: Path) -> tuple[str | None, float | None, str | None]:
+    path = home / ".credentials.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -59,15 +60,15 @@ def parse(data: dict, plan: str | None) -> dict:
                   windows=wins, source="api")
 
 
-_backoff_until = 0.0   # depois de um 429, espera antes de consultar de novo
+_backoff_until: dict[str, float] = {}   # por pasta: depois de um 429, espera antes de consultar de novo
 
 
-def collect() -> dict:
-    global _backoff_until
-    if time.time() < _backoff_until:
+def collect(home: Path = CLAUDE_DIR) -> dict:
+    key = str(home)
+    if time.time() < _backoff_until.get(key, 0):
         return result("claude", NAME, status="error",
                       message="A Anthropic pediu uma pausa nas consultas; tentando de novo em instantes.")
-    token, expires, plan = _read_token()
+    token, expires, plan = _read_token(home)
     if not token:
         return result("claude", NAME, status="missing",
                       message="Não encontrei o login do Claude Code. Rode `claude` e faça login.")
@@ -81,7 +82,7 @@ def collect() -> dict:
         })
     except net.HttpError as exc:
         if exc.status == 429:
-            _backoff_until = time.time() + 300
+            _backoff_until[key] = time.time() + 300
             return result("claude", NAME, status="error", plan=plan,
                           message="A Anthropic pediu uma pausa nas consultas; tentando de novo em 5 min.")
         if exc.status in (401, 403):

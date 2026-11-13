@@ -6,10 +6,13 @@ O Breath foi feito para uma pessoa, numa máquina. O objetivo é que nada do que
 
 | Arquivo | Uso | Escrita |
 |---|---|---|
+| `%LOCALAPPDATA%\Breath\contas.json` (opcional) | Lista de pastas de login a acompanhar (nomes e caminhos; nenhuma credencial) | Nunca |
 | `~/.claude/.credentials.json` | `accessToken` para consultar o uso na Anthropic | **Nunca** |
 | `~/.codex/auth.json` | `access_token` e `account_id` para consultar o uso no ChatGPT | **Nunca** |
 | `~/.codex/sessions/**/rollout-*.jsonl` | Último `rate_limits` (plano B offline do Codex) | Nunca |
 | `%LOCALAPPDATA%\Breath\ultima-leitura.json` | Última leitura boa (porcentagens, horários, rótulos e plano; nenhum token, e-mail ou ID) | Sim, pelo Breath |
+
+Com várias contas, cada pasta listada (ex.: `~/.claude-trabalho`) é lida do mesmo jeito: só leitura, e o token de cada conta vai apenas para o próprio provedor.
 
 O Breath **não renova** tokens. A renovação giraria o refresh token e poderia deslogar o Claude Code ou o Codex. Quando um token expira, o painel pede para você abrir a ferramenta correspondente, que renova sozinha.
 

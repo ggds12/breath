@@ -38,6 +38,20 @@ if (MINI) {
   setPinned(pinned());
   $("#pin").addEventListener("click", () => setPinned(!pinned()));
   $("#close").addEventListener("click", closeMini);
+  // Altura natural do conteúdo (cresce com o número de contas). O Breath ajusta a janela a ela;
+  // se não couber na tela, a lista de contas rola.
+  let lastSize = 0;
+  const reportSize = () => {
+    const w = $("#widget"), cs = getComputedStyle(w);
+    const kids = [...w.children];
+    const gaps = parseFloat(cs.rowGap || cs.gap || 0) * Math.max(0, kids.length - 1);
+    const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    const content = kids.reduce((acc, k) => acc + (k.id === "providers" ? k.scrollHeight : k.offsetHeight), 0);
+    const h = Math.ceil(content + gaps + pad) + 1;          // +1: recuo de 1 px embaixo
+    if (Math.abs(h - lastSize) >= 2) { lastSize = h; tell(`/api/size?h=${h}`); }
+  };
+  new ResizeObserver(reportSize).observe($("#providers"));
+  setTimeout(reportSize, 300);
   // Abrir o painel completo: quem abre é o Breath, no seu navegador padrão
   // (um link comum abriria outra janela deste Edge escondido, fora da tela).
   $("#expand").addEventListener("click", (e) => { e.preventDefault(); tell("/api/open-full"); });
@@ -398,6 +412,11 @@ function render() {
   const d = state.data;
   const list = d ? d.providers : [{ id: "claude", name: "Claude" }, { id: "codex", name: "Codex" }];
   list.forEach((p, i) => updateCard(p, i));
+  // Contas que sumiram saem; as que ficam seguem a ordem do servidor.
+  const ids = new Set(list.map((p) => p.id));
+  for (const [id, c] of state.cards) if (!ids.has(id)) { c.el.remove(); state.cards.delete(id); }
+  const box = $("#providers");
+  list.forEach((p) => { const c = state.cards.get(p.id); if (c) box.append(c.el); });
   prepareLayersOnce();
   renderHead();
   updateTitle();

@@ -213,6 +213,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .mini .close.mini-only { display: grid !important; }
 
 /* ---------- cartões ---------- */
+/* várias contas: se a janelinha atingir a altura da tela, a lista rola (os cartões não encolhem) */
+.providers > .card { flex-shrink: 0; }
+.mini .providers { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--edge-hi) transparent; margin: 0 -4px; padding: 0 4px; }
 .providers { display: flex; flex-direction: column; gap: 9px; min-height: 0; transform-style: preserve-3d; }
 .card {
   position: relative;

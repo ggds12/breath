@@ -279,6 +279,7 @@ class Tray:
         self.show_when_ready = False
         self.rejected: set[int] = set()       # janelas de outros Edge já verificadas
         self.last_autoclose = 0.0
+        self.popup_h = float(POPUP_H)
         self.geom = (1.0, 0, 0, POPUP_W, POPUP_H)
         self.profile = Path(os.environ.get("LOCALAPPDATA", Path.home()), "Breath", "janela")
         self.tip = "Breath"
@@ -441,8 +442,12 @@ class Tray:
         except OSError:
             pass
         s = dpi_x.value / 96
-        w, h, m = round((POPUP_W - RIGHT_INSET) * s), round((POPUP_H - BOTTOM_INSET) * s), round(12 * s)
         work = info.rcWork
+        m = round(12 * s)
+        # altura: a que a página pediu (cresce com o número de contas), limitada à área útil da tela
+        max_h = (work.bottom - work.top) / s - 24
+        self.popup_h = max(300, min(self.popup_h, max_h))
+        w, h = round((POPUP_W - RIGHT_INSET) * s), round((self.popup_h - BOTTOM_INSET) * s)
         return s, work.right - m - w, work.bottom - m - h, w, h
 
     def _open_popup(self, at_cursor: bool = True):
@@ -556,7 +561,7 @@ class Tray:
             self.frame = frame
         left, top, right, bottom = self.frame
         g = round(TOP_GUARD * s)
-        pw, ph = round(POPUP_W * s), round((POPUP_H + TOP_GUARD) * s)
+        pw, ph = round(POPUP_W * s), round((self.popup_h + TOP_GUARD) * s)
         user32.SetWindowPos(hwnd, None, -left, -(top + g), pw + left + right, ph + top + bottom,
                             SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW)
 
@@ -580,6 +585,13 @@ class Tray:
             while user32.IsWindow(hwnd):
                 if self.control and self.control.take_close():
                     user32.PostMessageW(self.host, WM_APP_HIDEHOST, 0, 0)
+                want = self.control.height if self.control else None
+                if want and abs(want - self.popup_h) >= 1:
+                    self.popup_h = want                      # mais/menos contas: ajusta a altura
+                    self.geom = self._target()
+                    s2, x2, y2, w2, h2 = self.geom
+                    user32.SetWindowPos(self.host, None, x2, y2, w2, h2, SWP_NOZORDER | SWP_NOACTIVATE)
+                    self._place_edge(hwnd, child)
                 if self.control and self.control.take_open_full():
                     user32.PostMessageW(self.host, WM_APP_HIDEHOST, 0, 0)
                     webbrowser.open(f"http://127.0.0.1:{PORT}/")

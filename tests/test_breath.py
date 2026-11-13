@@ -74,6 +74,65 @@ class TraySummaryTests(unittest.TestCase):
 
 
 
+class AccountsTests(unittest.TestCase):
+    """Descoberta de várias contas por pastas de login."""
+
+    def setUp(self):
+        from breath import accounts
+        self.acc = accounts
+        self.home = Path(tempfile.mkdtemp(prefix="breath-home-"))
+        self._old = (accounts.HOME, accounts.ACCOUNTS_FILE, os.environ.pop("CLAUDE_CONFIG_DIR", None),
+                     os.environ.pop("CODEX_HOME", None))
+        accounts.HOME = self.home
+        accounts.ACCOUNTS_FILE = self.home / "contas.json"
+
+    def tearDown(self):
+        self.acc.HOME, self.acc.ACCOUNTS_FILE = self._old[0], self._old[1]
+        os.environ["CLAUDE_CONFIG_DIR"] = str(Path(_tmp, "claude"))
+        os.environ["CODEX_HOME"] = str(Path(_tmp, "codex"))
+
+    def _login(self, folder, marker):
+        d = self.home / folder
+        d.mkdir(parents=True, exist_ok=True)
+        (d / marker).write_text("{}", encoding="utf-8")
+        return d
+
+    def test_default_accounts_always_listed(self):
+        ids = [a.id for a in self.acc.discover()]
+        self.assertEqual(ids, ["claude", "codex"])
+
+    def test_extra_folders_become_accounts(self):
+        self._login(".claude", ".credentials.json")
+        self._login(".claude-trabalho", ".credentials.json")
+        (self.home / ".claude-vazia").mkdir()            # sem login: ignorada
+        self._login(".codex_pessoal", "auth.json")
+        found = {a.id: a.name for a in self.acc.discover()}
+        self.assertEqual(found["claude:trabalho"], "Claude · Trabalho")
+        self.assertEqual(found["codex:pessoal"], "Codex · Pessoal")
+        self.assertNotIn("claude:vazia", found)
+        self.assertIn("claude", found)
+
+    def test_config_file_overrides_provider(self):
+        far = self._login("logins/claude-b", ".credentials.json")
+        (self.home / "contas.json").write_text(json.dumps({
+            "claude": [{"nome": "Pessoal", "pasta": str(self.home / ".claude")},
+                       {"nome": "Empresa", "pasta": str(far)}]}), encoding="utf-8")
+        accs = self.acc.discover()
+        claude = [a for a in accs if a.provider == "claude"]
+        self.assertEqual([a.name for a in claude], ["Claude · Pessoal", "Claude · Empresa"])
+        self.assertEqual(claude[1].path, far)
+        self.assertTrue(any(a.id == "codex" for a in accs))   # codex segue a descoberta automática
+
+    def test_same_folder_is_not_duplicated(self):
+        os.environ["CLAUDE_CONFIG_DIR"] = str(self.home / ".claude")
+        self._login(".claude", ".credentials.json")
+        self.assertEqual([a.id for a in self.acc.discover() if a.provider == "claude"], ["claude"])
+
+    def test_bad_config_is_ignored(self):
+        (self.home / "contas.json").write_text("{ isso não é json", encoding="utf-8")
+        self.assertEqual([a.id for a in self.acc.discover()], ["claude", "codex"])
+
+
 class NetTests(unittest.TestCase):
     def test_rejects_unknown_host_and_http(self):
         with self.assertRaises(ValueError):

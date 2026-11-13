@@ -23,6 +23,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
 from .config import BIND_HOST, CACHE_FILE, FORCE_MIN_INTERVAL, LIMITS_TTL, PORT, WEB_DIR
+from .accounts import discover
 from .providers import claude, codex, now_iso
 
 STATIC_TYPES = {
@@ -56,7 +57,7 @@ class State:
         self.lock = threading.Lock()
         self.limits: list[dict] = self._load_cache()
         self.fetched = 0.0
-        self.pool = ThreadPoolExecutor(max_workers=2)
+        self.pool = ThreadPoolExecutor(max_workers=6)
 
     # Última leitura boa em disco: só porcentagens, horários e rótulos (nenhum segredo).
     # Serve para mostrar dados logo ao abrir e quando o provedor recusar uma consulta.
@@ -70,7 +71,8 @@ class State:
             return []
         out = []
         for p in data:
-            if isinstance(p, dict) and p.get("id") in ("claude", "codex") and isinstance(p.get("windows"), list):
+            pid = p.get("id") if isinstance(p, dict) else None
+            if isinstance(pid, str) and pid.split(":")[0] in ("claude", "codex") and isinstance(p.get("windows"), list):
                 out.append(dict(p, status="stale", message="Última leitura salva; atualizando…"))
         return out
 
@@ -92,15 +94,18 @@ class State:
             age = time.time() - self.fetched
             if self.limits and (age < LIMITS_TTL and not (force and age >= FORCE_MIN_INTERVAL)):
                 return self.limits
-            futures = [self.pool.submit(fn) for fn in (claude.collect, codex.collect)]
+            # Uma consulta por conta (várias contas do Claude e/ou do Codex), em paralelo.
+            accounts = discover()
+            collectors = {"claude": claude.collect, "codex": codex.collect}
+            futures = [(acc, self.pool.submit(collectors[acc.provider], acc.path)) for acc in accounts]
             fresh = []
-            for fut, fallback_id in zip(futures, ("claude", "codex")):
+            for acc, fut in futures:
                 try:
-                    fresh.append(fut.result(timeout=20))
+                    res = fut.result(timeout=20)
                 except Exception as exc:  # nunca derruba o painel
-                    fresh.append({"id": fallback_id, "name": fallback_id.capitalize(),
-                                  "status": "error", "message": type(exc).__name__,
-                                  "windows": [], "as_of": now_iso()})
+                    res = {"status": "error", "message": type(exc).__name__, "windows": [], "as_of": now_iso()}
+                res = dict(res, id=acc.id, name=acc.name, provider=acc.provider)
+                fresh.append(res)
             # Se a consulta falhou mas tínhamos dados bons, mostra os anteriores como "stale".
             previous = {p["id"]: p for p in self.limits}
             merged = []
@@ -128,6 +133,7 @@ class Control:
         self.pinned = False
         self._close = False
         self._open_full = False
+        self.height: float | None = None   # altura natural do conteúdo, informada pela página
 
     def set_pinned(self, value: bool) -> None:
         with self._lock:
@@ -136,6 +142,10 @@ class Control:
     def request_close(self) -> None:
         with self._lock:
             self._close = True
+
+    def set_height(self, h: float) -> None:
+        with self._lock:
+            self.height = h
 
     def request_open_full(self) -> None:
         with self._lock:
@@ -223,6 +233,14 @@ class Handler(BaseHTTPRequestHandler):
             })
         if url.path == "/api/pin":
             CONTROL.set_pinned(parse_qs(url.query).get("on") == ["1"])
+            return self._json(200, {"ok": True})
+        if url.path == "/api/size":
+            try:
+                h = float(parse_qs(url.query)["h"][0])
+            except (KeyError, ValueError, IndexError):
+                return self._json(400, {"error": "parâmetro inválido"})
+            if 200 <= h <= 3000:
+                CONTROL.set_height(h)
             return self._json(200, {"ok": True})
         if url.path == "/api/open-full":
             CONTROL.request_open_full()

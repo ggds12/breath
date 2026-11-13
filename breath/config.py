@@ -26,5 +26,9 @@ ALLOWED_HOSTS = frozenset({"api.anthropic.com", "chatgpt.com"})
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
+# Pasta de dados do Breath (última leitura e o arquivo opcional de contas).
+DATA_DIR = Path(os.environ.get("LOCALAPPDATA") or HOME / ".cache") / "Breath"
 # Última leitura (só porcentagens e horários), para abrir já com dados.
-CACHE_FILE = Path(os.environ.get("LOCALAPPDATA") or HOME / ".cache") / "Breath" / "ultima-leitura.json"
+CACHE_FILE = DATA_DIR / "ultima-leitura.json"
+# Contas extras (opcional): veja breath/accounts.py.
+ACCOUNTS_FILE = DATA_DIR / "contas.json"
