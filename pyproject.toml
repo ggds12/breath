@@ -1,5 +1,5 @@
 [project]
-name = "folego"
+name = "breath"
 version = "0.1.0"
 description = "Painel local dos limites do Claude e do Codex"
 requires-python = ">=3.10"
@@ -7,4 +7,4 @@ dependencies = []
 license = { file = "LICENSE" }
 
 [project.scripts]
-folego = "folego.server:main"
+breath = "breath.server:main"

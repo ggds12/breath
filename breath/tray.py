@@ -208,7 +208,7 @@ kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 
 
 def _cmdline(pid: int) -> str:
-    """Linha de comando de um processo (só leitura), para reconhecer o Edge do Fôlego pelo perfil."""
+    """Linha de comando de um processo (só leitura), para reconhecer o Edge do Breath pelo perfil."""
     h = kernel32.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
     if not h:
         return ""
@@ -240,7 +240,7 @@ def _taskbar_delete_tab(hwnd) -> None:
     release(ptr)
 
 
-def message_box(text: str, title: str = "Fôlego") -> None:
+def message_box(text: str, title: str = "Breath") -> None:
     user32.MessageBoxW(None, text, title, 0x40)
 
 
@@ -265,7 +265,7 @@ def summarize(providers: list[dict]) -> str:
             parts.append(txt)
         else:
             parts.append(f"{p['name']} —")
-    return "Fôlego · " + " · ".join(parts)
+    return "Breath · " + " · ".join(parts)
 
 
 class Tray:
@@ -280,8 +280,8 @@ class Tray:
         self.rejected: set[int] = set()       # janelas de outros Edge já verificadas
         self.last_autoclose = 0.0
         self.geom = (1.0, 0, 0, POPUP_W, POPUP_H)
-        self.profile = Path(os.environ.get("LOCALAPPDATA", Path.home()), "Folego", "janela")
-        self.tip = "Fôlego"
+        self.profile = Path(os.environ.get("LOCALAPPDATA", Path.home()), "Breath", "janela")
+        self.tip = "Breath"
         self.alerted: dict[str, int] = {}      # chave da janela -> último nível avisado (80/100)
         self.pending_balloon: tuple[str, str, int] | None = None
         self.lock = threading.Lock()
@@ -296,16 +296,16 @@ class Tray:
         self._wndproc = WNDPROC(self._proc)   # manter referência viva
         self.hinst = kernel32.GetModuleHandleW(None)
         self.taskbar_created = user32.RegisterWindowMessageW("TaskbarCreated")
-        ico = WEB_DIR / "assets" / "folego.ico"
+        ico = WEB_DIR / "assets" / "breath.ico"
         self.hicon = user32.LoadImageW(None, str(ico), IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE)
 
         wc = WNDCLASSEXW()
         wc.cbSize = ctypes.sizeof(WNDCLASSEXW)
         wc.lpfnWndProc = self._wndproc
         wc.hInstance = self.hinst
-        wc.lpszClassName = "FolegoTrayWindow"
+        wc.lpszClassName = "BreathTrayWindow"
         user32.RegisterClassExW(ctypes.byref(wc))
-        self.hwnd = user32.CreateWindowExW(0, wc.lpszClassName, "Fôlego", 0,
+        self.hwnd = user32.CreateWindowExW(0, wc.lpszClassName, "Breath", 0,
                                            0, 0, 0, 0, None, None, self.hinst, None)
 
         # Hospedeira da janelinha (invisível até abrir).
@@ -315,9 +315,9 @@ class Tray:
         hc.lpfnWndProc = self._host_wndproc
         hc.hInstance = self.hinst
         hc.hbrBackground = gdi32.GetStockObject(BLACK_BRUSH)
-        hc.lpszClassName = "FolegoHost"
+        hc.lpszClassName = "BreathHost"
         user32.RegisterClassExW(ctypes.byref(hc))
-        self.host = user32.CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, hc.lpszClassName, "Fôlego",
+        self.host = user32.CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, hc.lpszClassName, "Breath",
                                            WS_POPUP | WS_CLIPCHILDREN, 0, 0, 10, 10,
                                            None, None, self.hinst, None)
         _host_dwm(self.host)
@@ -378,7 +378,7 @@ class Tray:
         return msg
 
     # ----- janela suspensa -----
-    # A janelinha é uma janela do próprio Fôlego (a "hospedeira"): sem moldura, fora da barra de
+    # A janelinha é uma janela do próprio Breath (a "hospedeira"): sem moldura, fora da barra de
     # tarefas (estilo ferramenta) e com os cantos arredondados (suavizados) do Windows 11.
     # Dentro dela fica a janela de app do Edge, capturada no instante em que é criada — antes de
     # aparecer — e posicionada de modo que a barra de título do Edge fique fora da área visível.
@@ -399,7 +399,7 @@ class Tray:
             buf = ctypes.create_unicode_buffer(256)
             user32.GetWindowTextW(hwnd, buf, 256)
             t = buf.value
-            if t.endswith(("— Fôlego", "— TokenBar")) or t in ("Fôlego · GGDS", "TokenBar · GGDS"):
+            if t.endswith(("— Breath", "— Fôlego", "— TokenBar")) or t in ("Breath", "Fôlego · GGDS", "TokenBar · GGDS"):
                 found.append(hwnd)
                 return False
             return True
@@ -446,7 +446,7 @@ class Tray:
         return s, work.right - m - w, work.bottom - m - h, w, h
 
     def _open_popup(self, at_cursor: bool = True):
-        """Mostra a janelinha. O Edge fica pronto (escondido) desde o início do Fôlego, então
+        """Mostra a janelinha. O Edge fica pronto (escondido) desde o início do Breath, então
         abrir é só exibir a hospedeira: instantâneo e sem nenhuma janela nova aparecendo."""
         self.at_cursor = at_cursor
         self.geom = self._target()
@@ -510,7 +510,7 @@ class Tray:
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
         user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
         user32.SetWindowPos(hwnd, None, -32000, -32000, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
-        # 2) confirma pelo perfil exclusivo do Fôlego na linha de comando do processo
+        # 2) confirma pelo perfil exclusivo do Breath na linha de comando do processo
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         if str(self.profile).lower() not in _cmdline(pid.value).lower():
@@ -636,7 +636,7 @@ class Tray:
         user32.AppendMenuW(menu, MF_STRING, CMD_FULL, "Painel completo no navegador")
         user32.AppendMenuW(menu, MF_STRING, CMD_REFRESH, "Atualizar agora")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-        user32.AppendMenuW(menu, MF_STRING, CMD_QUIT, "Sair do Fôlego")
+        user32.AppendMenuW(menu, MF_STRING, CMD_QUIT, "Sair do Breath")
         pt = wintypes.POINT()
         user32.GetCursorPos(ctypes.byref(pt))
         user32.SetForegroundWindow(self.hwnd)

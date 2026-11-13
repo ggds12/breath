@@ -1,5 +1,5 @@
 "use strict";
-// Fôlego · painel. Texto vindo da API entra sempre via textContent (nunca innerHTML).
+// Breath · painel. Texto vindo da API entra sempre via textContent (nunca innerHTML).
 
 const POLL_MS = 60_000;
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -22,23 +22,23 @@ const store = {
 };
 if (MINI) html.classList.add("mini");
 
-function pinned() { return store.get("folego.pinned") === "1"; }
-// A janelinha mora dentro de uma janela do Fôlego: é ela que fecha ao perder o foco.
+function pinned() { return store.get("breath.pinned") === "1"; }
+// A janelinha mora dentro de uma janela do Breath: é ela que fecha ao perder o foco.
 // A página só avisa quando está fixada e quando você pede para fechar.
-const tell = (path) => fetch(path, { headers: { "X-Folego": "1" }, cache: "no-store", credentials: "omit" }).catch(() => {});
+const tell = (path) => fetch(path, { headers: { "X-Breath": "1" }, cache: "no-store", credentials: "omit" }).catch(() => {});
 function setPinned(v) {
-  store.set("folego.pinned", v ? "1" : "0");
+  store.set("breath.pinned", v ? "1" : "0");
   $("#pin").setAttribute("aria-pressed", String(v));
   if (MINI) tell(`/api/pin?on=${v ? 1 : 0}`);
 }
 function closeMini() {
-  tell("/api/close");   // o Fôlego esconde a janelinha (a página continua pronta para a próxima vez)
+  tell("/api/close");   // o Breath esconde a janelinha (a página continua pronta para a próxima vez)
 }
 if (MINI) {
   setPinned(pinned());
   $("#pin").addEventListener("click", () => setPinned(!pinned()));
   $("#close").addEventListener("click", closeMini);
-  // Abrir o painel completo: quem abre é o Fôlego, no seu navegador padrão
+  // Abrir o painel completo: quem abre é o Breath, no seu navegador padrão
   // (um link comum abriria outra janela deste Edge escondido, fora da tela).
   $("#expand").addEventListener("click", (e) => { e.preventDefault(); tell("/api/open-full"); });
   // Como um menu do Windows: clicou fora, some (a menos que esteja fixada).
@@ -47,11 +47,11 @@ if (MINI) {
 /* ============================ tema ============================ */
 function systemTheme() { return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"; }
 function applyTheme(t) { html.dataset.theme = t === "light" ? "light" : "dark"; }
-applyTheme(PARAMS.get("theme") || store.get("folego.theme") || systemTheme());
+applyTheme(PARAMS.get("theme") || store.get("breath.theme") || systemTheme());
 $("#theme").addEventListener("click", () => {
   const next = html.dataset.theme === "dark" ? "light" : "dark";
   applyTheme(next);
-  store.set("folego.theme", next);
+  store.set("breath.theme", next);
   setMood(currentMood, true);
 });
 
@@ -98,21 +98,21 @@ if (!reduceMotion) requestAnimationFrame(frame);
 
 /* ============================ mascote ============================ */
 const MOODS = {
-  pronto: { ink: null, color: "var(--ambar)" },
-  buscando: { ink: null, color: "var(--ambar)" },
-  processando: { ink: null, color: "var(--ambar)" },
+  pronto: { ink: null, color: "var(--air)" },
+  buscando: { ink: null, color: "var(--air)" },
+  processando: { ink: null, color: "var(--air)" },
   sucesso: { ink: "var(--good)", color: "var(--good)" },
   atencao: { ink: "var(--warn)", color: "var(--warn)" },
   erro: { ink: "var(--bad)", color: "var(--bad)" },
-  vazio: { ink: null, color: "var(--ambar)" },
-  repouso: { ink: null, color: "var(--ambar)" },
+  vazio: { ink: null, color: "var(--air)" },
+  repouso: { ink: null, color: "var(--air)" },
 };
 let currentMood = null;
 let mascotSeq = 0;
 let mascotFront = $("#mascot-a"), mascotBack = $("#mascot-b");
 mascotBack.classList.add("out");
 
-function mascotSrc(mood) { return `/assets/mascote/${mood}${html.dataset.theme === "dark" ? "-branco" : ""}.svg`; }
+function mascotSrc(mood) { return `/assets/mascot/${mood}${html.dataset.theme === "dark" ? "-branco" : ""}.svg`; }
 
 function setMood(mood, force = false) {
   if (mood === currentMood && !force) return;
@@ -434,7 +434,7 @@ function updateTitle() {
     const w = p.windows.find((x) => x.id === "session");
     return w && w.used_percent != null ? `${p.name} ${Math.round(w.used_percent)}%` : null;
   }).filter(Boolean);
-  document.title = parts.length ? `${parts.join(" · ")} — Fôlego` : "Fôlego · GGDS";
+  document.title = parts.length ? `${parts.join(" · ")} — Breath` : "Breath";
 }
 
 function demoData() {
@@ -465,7 +465,7 @@ async function load(force = false) {
       data = demoData();
     } else {
       const res = await fetch(`/api/status${force ? "?refresh=1" : ""}`, {
-        headers: { "X-Folego": "1" }, cache: "no-store", credentials: "omit",
+        headers: { "X-Breath": "1" }, cache: "no-store", credentials: "omit",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       data = await res.json();
@@ -487,7 +487,7 @@ async function load(force = false) {
       setMood("erro");
       setText($("#eyebrow"), "Algo deu errado");
       setText($("#headline"), "Servidor local não respondeu");
-      setText($("#sub"), "Abra o Fôlego pelo atalho e tente de novo.");
+      setText($("#sub"), "Abra o Breath pelo atalho e tente de novo.");
     }
   } finally {
     state.loading = false;

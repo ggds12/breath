@@ -12,13 +12,13 @@ import time
 import unittest
 from pathlib import Path
 
-os.environ["FOLEGO_PORT"] = "17878"
-_tmp = tempfile.mkdtemp(prefix="folego-test-")
+os.environ["BREATH_PORT"] = "17878"
+_tmp = tempfile.mkdtemp(prefix="breath-test-")
 os.environ["CLAUDE_CONFIG_DIR"] = str(Path(_tmp, "claude"))
 os.environ["CODEX_HOME"] = str(Path(_tmp, "codex"))
 
-from folego import net, server  # noqa: E402
-from folego.providers import claude, codex  # noqa: E402
+from breath import net, server  # noqa: E402
+from breath.providers import claude, codex  # noqa: E402
 
 
 class ParserTests(unittest.TestCase):
@@ -63,13 +63,13 @@ class ParserTests(unittest.TestCase):
 class TraySummaryTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "só Windows")
     def test_summary_text(self):
-        from folego.tray import summarize
+        from breath.tray import summarize
         txt = summarize([
             {"id": "claude", "name": "Claude", "windows": [
                 {"id": "session", "used_percent": 22.4}, {"id": "weekly", "used_percent": 78}]},
             {"id": "codex", "name": "Codex", "windows": []},
         ])
-        self.assertEqual(txt, "Fôlego · Claude 22% (sem. 78%) · Codex —")
+        self.assertEqual(txt, "Breath · Claude 22% (sem. 78%) · Codex —")
         self.assertLess(len(txt), 128)   # limite da dica do ícone
 
 
@@ -111,12 +111,12 @@ class ServerTests(unittest.TestCase):
 
     def test_api_requires_header(self):
         self.assertEqual(self.req("GET", "/api/status")[0], 403)
-        st, _, body = self.req("GET", "/api/status", {"X-Folego": "1"})
+        st, _, body = self.req("GET", "/api/status", {"X-Breath": "1"})
         self.assertEqual(st, 200)
         self.assertIn("providers", json.loads(body))
 
     def test_foreign_origin_blocked(self):
-        st = self.req("GET", "/api/status", {"X-Folego": "1", "Origin": "https://evil.com"})[0]
+        st = self.req("GET", "/api/status", {"X-Breath": "1", "Origin": "https://evil.com"})[0]
         self.assertEqual(st, 403)
 
     def test_dns_rebinding_blocked(self):
@@ -128,18 +128,18 @@ class ServerTests(unittest.TestCase):
 
     def test_popup_commands(self):
         self.assertEqual(self.req("GET", "/api/pin?on=1")[0], 403)         # exige o cabeçalho
-        self.assertEqual(self.req("GET", "/api/pin?on=1", {"X-Folego": "1"})[0], 200)
+        self.assertEqual(self.req("GET", "/api/pin?on=1", {"X-Breath": "1"})[0], 200)
         self.assertTrue(server.CONTROL.pinned)
-        self.req("GET", "/api/pin?on=0", {"X-Folego": "1"})
+        self.req("GET", "/api/pin?on=0", {"X-Breath": "1"})
         self.assertFalse(server.CONTROL.pinned)
-        self.req("GET", "/api/close", {"X-Folego": "1"})
+        self.req("GET", "/api/close", {"X-Breath": "1"})
         self.assertTrue(server.CONTROL.take_close())
         self.assertFalse(server.CONTROL.take_close())                       # é consumido uma vez
-        self.req("GET", "/api/open-full", {"X-Folego": "1"})
+        self.req("GET", "/api/open-full", {"X-Breath": "1"})
         self.assertTrue(server.CONTROL.take_open_full())
 
     def test_path_traversal(self):
-        for p in ("/../folego/config.py", "/%2e%2e/README.md", "/assets/../../folego/net.py"):
+        for p in ("/../breath/config.py", "/%2e%2e/README.md", "/assets/../../breath/net.py"):
             self.assertEqual(self.req("GET", p)[0], 404, p)
 
 

@@ -1,6 +1,6 @@
 # Modelo de segurança
 
-O Fôlego foi feito para uma pessoa, numa máquina. O objetivo é que nada do que ele lê saia do computador, exceto as consultas de uso feitas aos próprios provedores, com o token que já pertence a eles.
+O Breath foi feito para uma pessoa, numa máquina. O objetivo é que nada do que ele lê saia do computador, exceto as consultas de uso feitas aos próprios provedores, com o token que já pertence a eles.
 
 ## O que ele lê
 
@@ -9,15 +9,15 @@ O Fôlego foi feito para uma pessoa, numa máquina. O objetivo é que nada do qu
 | `~/.claude/.credentials.json` | `accessToken` para consultar o uso na Anthropic | **Nunca** |
 | `~/.codex/auth.json` | `access_token` e `account_id` para consultar o uso no ChatGPT | **Nunca** |
 | `~/.codex/sessions/**/rollout-*.jsonl` | Último `rate_limits` (plano B offline do Codex) | Nunca |
-| `%LOCALAPPDATA%\Folego\ultima-leitura.json` | Última leitura boa (porcentagens, horários, rótulos e plano; nenhum token, e-mail ou ID) | Sim, pelo Fôlego |
+| `%LOCALAPPDATA%\Breath\ultima-leitura.json` | Última leitura boa (porcentagens, horários, rótulos e plano; nenhum token, e-mail ou ID) | Sim, pelo Breath |
 
-O Fôlego **não renova** tokens. A renovação giraria o refresh token e poderia deslogar o Claude Code ou o Codex. Quando um token expira, o painel pede para você abrir a ferramenta correspondente, que renova sozinha.
+O Breath **não renova** tokens. A renovação giraria o refresh token e poderia deslogar o Claude Code ou o Codex. Quando um token expira, o painel pede para você abrir a ferramenta correspondente, que renova sozinha.
 
 ## Defesas no servidor local
 
 - Escuta apenas em `127.0.0.1`. Não é configurável, para não expor a porta na rede por engano.
 - **Host** precisa ser `127.0.0.1:<porta>` ou `localhost:<porta>`, o que bloqueia DNS rebinding.
-- A API exige o cabeçalho `X-Folego: 1` e recusa `Origin` externo. Um site aberto no navegador não consegue mandar esse cabeçalho sem um preflight CORS, e o servidor nunca aprova preflights (`OPTIONS` → 405).
+- A API exige o cabeçalho `X-Breath: 1` e recusa `Origin` externo. Um site aberto no navegador não consegue mandar esse cabeçalho sem um preflight CORS, e o servidor nunca aprova preflights (`OPTIONS` → 405).
 - Somente `GET`/`HEAD`. Não há endpoint que grave arquivos ou execute algo; `/api/pin` e `/api/close` só fixam ou escondem a janelinha.
 - Arquivos estáticos só de `web/`, com extensões permitidas e proteção contra `../`.
 - Cabeçalhos: CSP `default-src 'none'` sem inline, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, COOP/CORP.
@@ -37,5 +37,5 @@ Nenhuma dependência de terceiros: só a biblioteca padrão do Python e arquivos
 
 ## Limites conhecidos
 
-- Qualquer programa rodando com o seu usuário do Windows consegue ler os mesmos arquivos de credenciais. O Fôlego não piora isso, mas também não protege contra malware local.
+- Qualquer programa rodando com o seu usuário do Windows consegue ler os mesmos arquivos de credenciais. O Breath não piora isso, mas também não protege contra malware local.
 - Os endpoints de uso não são públicos nem documentados e podem mudar sem aviso.
