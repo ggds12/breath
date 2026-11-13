@@ -23,24 +23,22 @@ const store = {
 if (MINI) html.classList.add("mini");
 
 function pinned() { return store.get("folego.pinned") === "1"; }
+// A janelinha mora dentro de uma janela do Fôlego: é ela que fecha ao perder o foco.
+// A página só avisa quando está fixada e quando você pede para fechar.
+const tell = (path) => fetch(path, { headers: { "X-Folego": "1" }, cache: "no-store", credentials: "omit" }).catch(() => {});
 function setPinned(v) {
   store.set("folego.pinned", v ? "1" : "0");
   $("#pin").setAttribute("aria-pressed", String(v));
+  if (MINI) tell(`/api/pin?on=${v ? 1 : 0}`);
+}
+function closeMini() {
+  tell("/api/close");   // o Fôlego esconde a janelinha (a página continua pronta para a próxima vez)
 }
 if (MINI) {
   setPinned(pinned());
   $("#pin").addEventListener("click", () => setPinned(!pinned()));
-  $("#close").addEventListener("click", () => window.close());
+  $("#close").addEventListener("click", closeMini);
   // Como um menu do Windows: clicou fora, some (a menos que esteja fixada).
-  // Só fecha se a janela já tiver recebido foco de verdade e o perdido por mais de 250 ms
-  // (evita fechar durante a abertura, quando o Windows ainda está ajustando a janela).
-  let blurTimer = 0, focusedOnce = document.hasFocus();
-  window.addEventListener("focus", () => { focusedOnce = true; clearTimeout(blurTimer); });
-  window.addEventListener("blur", () => {
-    if (pinned() || !focusedOnce) return;
-    clearTimeout(blurTimer);
-    blurTimer = setTimeout(() => { if (!document.hasFocus() && !pinned()) window.close(); }, 250);
-  });
 }
 
 /* ============================ tema ============================ */
@@ -502,10 +500,22 @@ document.addEventListener("keydown", (e) => {
   if (k === "r") load(true);
   else if (k === "t") $("#theme").click();
   else if (k === "f" && MINI) $("#pin").click();
-  else if (k === "escape" && MINI) window.close();
+  else if (k === "escape" && MINI) closeMini();
 });
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && Date.now() - state.lastOk > POLL_MS / 2) load();
+  if (document.hidden) return;
+  if (MINI) {
+    // A janelinha reaparece: refaz a entrada em cascata e busca dados novos.
+    if (!STILL && !reduceMotion) {
+      html.classList.remove("live");
+      html.classList.add("boot");
+      setTimeout(() => html.classList.remove("boot"), 40);
+      setTimeout(() => html.classList.add("live"), 1500);
+    }
+    load();
+  } else if (Date.now() - state.lastOk > POLL_MS / 2) {
+    load();
+  }
 });
 
 render();

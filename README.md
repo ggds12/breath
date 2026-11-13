@@ -122,6 +122,8 @@ A última leitura boa fica em `%LOCALAPPDATA%\Folego\ultima-leitura.json` (só p
 
 **É oficial?** Não. O Fôlego é um projeto independente, sem vínculo com a Anthropic ou a OpenAI.
 
+**Por que aparece um processo do Edge no Gerenciador de Tarefas?** A janelinha é uma página desenhada pelo Edge, dentro de uma janela do próprio Fôlego. Para abrir na hora, sem piscar, o Fôlego prepara essa página escondida assim que inicia e a mantém pronta (algo como 100 MB de memória). Ela usa um perfil separado, sem acesso aos seus favoritos, senhas ou cookies.
+
 ## Desenvolvimento
 
 ```powershell

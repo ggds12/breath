@@ -342,7 +342,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .mini .mini-only { display: grid !important; }
 .mini .full-only { display: none !important; }
 /* faixa de 4 px no topo fica fora do recorte da janela (o Edge desenha ali a barra de título) */
-.mini .scene { height: calc(100% - 4px); margin-top: 4px; }
+.mini .scene { height: calc(100% - 5px); margin-top: 4px; }   /* 4 px no topo, 1 px embaixo (BOTTOM_INSET) */
 .mini .close { top: 16px; right: 13px; }
 /* Na janelinha a moldura fica parada, colada ao recorte da janela: só o conteúdo ganha
    profundidade. (Inclinar a moldura inteira deslocava as bordas e mostrava o fundo.) */
@@ -351,7 +351,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
      O recorte da janela (tray.py, RIGHT_INSET) termina exatamente aqui. */
   width: calc(100% - 1px);
   justify-self: start;
-  border-radius: 14px;
+  border-radius: 8px;          /* igual aos cantos arredondados do Windows 11 (janela hospedeira) */
   border: 1px solid var(--edge-hi);
   transform: none;
   perspective: 900px;

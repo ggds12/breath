@@ -120,6 +120,35 @@ class State:
 STATE = State()
 
 
+class Control:
+    """Pedidos da página da janelinha ao ícone: manter aberta (fixar) e fechar."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.pinned = False
+        self._close = False
+
+    def set_pinned(self, value: bool) -> None:
+        with self._lock:
+            self.pinned = value
+
+    def request_close(self) -> None:
+        with self._lock:
+            self._close = True
+
+    def take_close(self) -> bool:
+        with self._lock:
+            requested, self._close = self._close, False
+            return requested
+
+    def reset(self) -> None:
+        with self._lock:
+            self._close = False
+
+
+CONTROL = Control()
+
+
 
 class Handler(BaseHTTPRequestHandler):
     server_version = f"Folego/{__version__}"
@@ -182,6 +211,12 @@ class Handler(BaseHTTPRequestHandler):
                 "generated_at": now_iso(),
                 "providers": limits,
             })
+        if url.path == "/api/pin":
+            CONTROL.set_pinned(parse_qs(url.query).get("on") == ["1"])
+            return self._json(200, {"ok": True})
+        if url.path == "/api/close":
+            CONTROL.request_close()
+            return self._json(200, {"ok": True})
         if url.path == "/api/health":
             return self._json(200, {"ok": True, "version": __version__})
         return self._json(404, {"error": "não encontrado"})
@@ -235,6 +270,6 @@ def main(argv: list[str] | None = None) -> None:
 
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        Tray(STATE.get_limits, on_quit=httpd.shutdown).run(show=args.show)
+        Tray(STATE.get_limits, on_quit=httpd.shutdown, control=CONTROL).run(show=args.show)
     finally:
         httpd.server_close()

@@ -18,7 +18,7 @@ O Fôlego **não renova** tokens. A renovação giraria o refresh token e poderi
 - Escuta apenas em `127.0.0.1`. Não é configurável, para não expor a porta na rede por engano.
 - **Host** precisa ser `127.0.0.1:<porta>` ou `localhost:<porta>`, o que bloqueia DNS rebinding.
 - A API exige o cabeçalho `X-Folego: 1` e recusa `Origin` externo. Um site aberto no navegador não consegue mandar esse cabeçalho sem um preflight CORS, e o servidor nunca aprova preflights (`OPTIONS` → 405).
-- Somente `GET`/`HEAD`. Não há endpoint que grave ou execute algo.
+- Somente `GET`/`HEAD`. Não há endpoint que grave arquivos ou execute algo; `/api/pin` e `/api/close` só fixam ou escondem a janelinha.
 - Arquivos estáticos só de `web/`, com extensões permitidas e proteção contra `../`.
 - Cabeçalhos: CSP `default-src 'none'` sem inline, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, COOP/CORP.
 - A resposta da API traz só percentuais, horários e contagens. Tokens, e-mail e IDs de conta são descartados no servidor.
